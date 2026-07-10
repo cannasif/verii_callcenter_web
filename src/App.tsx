@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Building2,
   CalendarDays,
@@ -70,6 +71,20 @@ type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
 type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'rules' | 'simulator' | 'logs';
 type WorkspaceGroup = 'company-management' | 'operation' | 'monitoring';
+
+const workspacePaths: Record<WorkspaceSection, string> = {
+  company: '/firma-yonetimi/firma-karti',
+  hours: '/firma-yonetimi/calisma-saatleri',
+  exceptions: '/firma-yonetimi/ozel-gunler',
+  departments: '/operasyon/departman-kuyruklar',
+  rules: '/operasyon/yonlendirme-kurallari',
+  simulator: '/izleme/karar-simulasyonu',
+  logs: '/izleme/konusma-loglari',
+};
+
+function getWorkspaceSection(pathname: string): WorkspaceSection {
+  return (Object.entries(workspacePaths).find(([, path]) => path === pathname)?.[0] as WorkspaceSection | undefined) ?? 'company';
+}
 
 const loginTranslations: Record<LoginLanguageCode, {
   brandSuffix: string;
@@ -433,11 +448,12 @@ function authCompaniesToCompanies(items: AuthCompany[]): Company[] {
 }
 
 function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [authContext, setAuthContext] = useState<AuthContext | null>(null);
   const [loginCompanies, setLoginCompanies] = useState<AuthCompany[]>([]);
   const [isLoginCompaniesLoading, setIsLoginCompaniesLoading] = useState(false);
-  const [activeSection, setActiveSection] = useState<WorkspaceSection>('company');
   const [expandedWorkspaceGroups, setExpandedWorkspaceGroups] = useState<Record<WorkspaceGroup, boolean>>({
     'company-management': true,
     operation: true,
@@ -494,6 +510,7 @@ function App() {
     callerNumberMasked: '+90 *** *** 0000',
     writeLog: true,
   });
+  const activeSection = getWorkspaceSection(location.pathname);
 
   const selectedCompany = useMemo(
     () => companies.find((company) => company.id === selectedCompanyId) ?? null,
@@ -546,7 +563,7 @@ function App() {
     if (definition) {
       setExpandedWorkspaceGroups((groups) => ({ ...groups, [definition.group]: true }));
     }
-    setActiveSection(section);
+    navigate(workspacePaths[section]);
   }
 
   useEffect(() => {
