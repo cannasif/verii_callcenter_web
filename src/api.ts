@@ -61,6 +61,26 @@ export interface LoginResponse {
   message?: string | null;
 }
 
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  exceptionMessage: string;
+  data?: T | null;
+  errors: string[];
+  statusCode: number;
+}
+
+export interface PagedResponse<T> {
+  items?: T[];
+  data?: T[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
 export interface BusinessHour {
   id: number;
   companyId: number;
@@ -133,7 +153,24 @@ export interface ConversationLog {
 }
 
 export const callCenterApi = {
-  loginCompanies: () => api.get<AuthCompany[]>('/api/auth/companies').then((x) => x.data),
+  loginCompanies: () =>
+    api
+      .post<ApiResponse<PagedResponse<AuthCompany>>>('/api/auth/companies/query', {
+        pageNumber: 1,
+        pageSize: 100,
+        search: '',
+        sortBy: 'Name',
+        sortDirection: 'asc',
+        filterLogic: 'and',
+        filters: [],
+      })
+      .then((x) => {
+        if (!x.data.success || !x.data.data) {
+          throw new Error(x.data.message || 'Firmalar yüklenemedi');
+        }
+
+        return x.data.data.items ?? x.data.data.data ?? [];
+      }),
   login: (payload: { email: string; password: string; companyId?: number | null }) =>
     api.post<LoginResponse>('/api/auth/login', payload).then((x) => x.data),
   authContext: (selectedCompanyId?: number | null) =>

@@ -1,17 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Building2,
   CalendarDays,
   Clock3,
+  Eye,
+  EyeOff,
   GitBranch,
   Headphones,
   History,
-  KeyRound,
+  Lock,
+  LogIn,
   LogOut,
   Play,
   Plus,
   RefreshCw,
+  Rocket,
   Save,
+  ShieldCheck,
+  UserRound,
 } from 'lucide-react';
 import './App.css';
 import {
@@ -80,6 +86,7 @@ function App() {
   const [logs, setLogs] = useState<ConversationLog[]>([]);
   const [decision, setDecision] = useState<DecisionResult | null>(null);
   const [status, setStatus] = useState('Hazır');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [exceptionDraft, setExceptionDraft] = useState({
     date: new Date().toISOString().slice(0, 10),
     title: '',
@@ -174,7 +181,9 @@ function App() {
     }
   }
 
-  async function login() {
+  async function login(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+
     if (!loginDraft.email.trim() || !loginDraft.password.trim()) {
       setStatus('E-posta ve şifre zorunlu');
       return;
@@ -339,34 +348,128 @@ function App() {
 
   if (!authContext) {
     return (
-      <main className="login-page">
-        <section className="login-panel">
-          <div className="login-brand">
-            <Headphones size={30} />
-            <div>
-              <h1>V3RII Call Center</h1>
-              <p>Admin paneline giriş</p>
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050914] px-4 py-8 text-slate-200">
+        <SpaceBackground />
+        <div className="pointer-events-none fixed left-10 top-10 z-0 hidden h-36 w-36 rounded-full border border-cyan-300/20 shadow-[0_0_80px_rgba(34,211,238,0.16)] md:block" />
+        <div className="pointer-events-none fixed bottom-12 right-12 z-0 h-52 w-52 rounded-full border border-fuchsia-400/10 bg-cyan-500/5 blur-sm" />
+
+        <section className="relative z-10 grid w-full max-w-4xl overflow-hidden rounded-2xl border border-blue-400/20 bg-[#0d1124]/70 shadow-[0_0_30px_rgba(0,195,255,0.12)] backdrop-blur-xl md:grid-cols-2">
+          <div className="relative hidden overflow-hidden border-r border-blue-400/20 bg-gradient-to-br from-blue-950/45 to-fuchsia-950/35 p-10 md:flex md:min-h-[620px] md:flex-col md:justify-between">
+            <div className="absolute -bottom-24 -left-24 opacity-25">
+              <PlanetMark />
+            </div>
+
+            <div className="relative z-10">
+              <div className="mb-8 flex items-center gap-3">
+                <Rocket className="animate-[float_4s_ease-in-out_infinite] text-blue-300 drop-shadow-[0_0_12px_rgba(96,165,250,0.75)]" size={34} />
+                <h2 className="font-mono text-2xl font-bold tracking-[0.24em] text-white">
+                  V3RII<span className="text-blue-300">COMMS</span>
+                </h2>
+              </div>
+              <h1 className="text-4xl font-bold leading-tight tracking-wide text-white">
+                Müşteri
+                <br />
+                İletişim
+                <br />
+                <span className="bg-gradient-to-r from-blue-300 to-fuchsia-400 bg-clip-text text-transparent">Merkezi</span>
+              </h1>
+              <p className="mt-5 max-w-xs text-sm leading-6 text-slate-400">
+                Temsilci ve yönetici portalına erişmek için firma ve kullanıcı bilgilerinizi doğrulayın.
+              </p>
+            </div>
+
+            <div className="relative z-10 space-y-3 font-mono text-xs">
+              <div className="flex items-center justify-between rounded border border-slate-600/50 bg-black/30 p-2">
+                <span className="text-slate-400">SUNUCU DURUMU</span>
+                <span className="flex items-center text-emerald-300">
+                  <span className="mr-2 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+                  ÇEVRİMİÇİ
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded border border-slate-600/50 bg-black/30 p-2">
+                <span className="text-slate-400">GÜVENLİK PROTOKOLÜ</span>
+                <span className="text-blue-300">AKTİF</span>
+              </div>
             </div>
           </div>
-          <div className="login-form">
-            <Field label="E-posta">
-              <input value={loginDraft.email} onChange={(event) => setLoginDraft({ ...loginDraft, email: event.target.value })} />
-            </Field>
-            <Field label="Şifre">
-              <input type="password" value={loginDraft.password} onChange={(event) => setLoginDraft({ ...loginDraft, password: event.target.value })} />
-            </Field>
-            <Field label="Firma">
-              <select value={loginDraft.companyId} onChange={(event) => setLoginDraft({ ...loginDraft, companyId: event.target.value })}>
-                <option value="">Super admin / firma seçmeden giriş</option>
-                {loginCompanies.map((company) => (
-                  <option key={company.id} value={company.id}>{company.name}</option>
-                ))}
-              </select>
-            </Field>
-            <button className="save-button" type="button" onClick={login}>
-              <KeyRound size={16} /> Giriş yap
-            </button>
-            <div className="login-status">{status}</div>
+
+          <div className="flex min-h-[620px] flex-col justify-center bg-[#0b1120]/85 p-8 md:p-12">
+            <div className="mb-8 flex items-center justify-center gap-2 md:hidden">
+              <Rocket className="animate-[float_4s_ease-in-out_infinite] text-blue-300" size={26} />
+              <h2 className="font-mono text-xl font-bold tracking-[0.22em] text-white">
+                V3RII<span className="text-blue-300">COMMS</span>
+              </h2>
+            </div>
+
+            <h3 className="font-mono text-2xl font-semibold text-white drop-shadow-[0_0_12px_rgba(0,195,255,0.35)]">Temsilci Girişi</h3>
+            <p className="mb-8 mt-2 text-sm text-slate-400">Devam etmek için operatör bilgilerinizi giriniz.</p>
+
+            <form className="space-y-5" onSubmit={(event) => void login(event)}>
+              <LoginField icon={<Building2 size={17} />} label="Firma">
+                <select
+                  className="w-full appearance-none rounded-lg bg-transparent px-10 py-3 text-sm text-white outline-none"
+                  value={loginDraft.companyId}
+                  onChange={(event) => setLoginDraft({ ...loginDraft, companyId: event.target.value })}
+                >
+                  <option className="bg-[#0b1120]" value="">Super admin / firma seçmeden giriş</option>
+                  {loginCompanies.map((company) => (
+                    <option className="bg-[#0b1120]" key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </select>
+              </LoginField>
+
+              <LoginField icon={<UserRound size={17} />} label="Operatör ID / E-posta">
+                <input
+                  className="w-full rounded-lg bg-transparent px-10 py-3 text-sm text-white outline-none placeholder:text-slate-600"
+                  placeholder="admin@v3rii.com"
+                  value={loginDraft.email}
+                  onChange={(event) => setLoginDraft({ ...loginDraft, email: event.target.value })}
+                />
+              </LoginField>
+
+              <LoginField icon={<Lock size={17} />} label="Erişim Kodu">
+                <input
+                  className="w-full rounded-lg bg-transparent px-10 py-3 pr-12 text-sm text-white outline-none placeholder:text-slate-600"
+                  placeholder="••••••••"
+                  type={isPasswordVisible ? 'text' : 'password'}
+                  value={loginDraft.password}
+                  onChange={(event) => setLoginDraft({ ...loginDraft, password: event.target.value })}
+                />
+                <button
+                  aria-label={isPasswordVisible ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition-colors hover:text-slate-200"
+                  type="button"
+                  onClick={() => setIsPasswordVisible((value) => !value)}
+                >
+                  {isPasswordVisible ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </LoginField>
+
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-400">
+                <input className="h-4 w-4 rounded border-slate-600 bg-[#131b2f] accent-blue-500" type="checkbox" />
+                Terminali hatırla
+              </label>
+
+              <button
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[linear-gradient(90deg,#1e3c72_0%,#2a5298_55%,#00c3ff_120%)] bg-[length:200%_auto] py-3 font-mono text-sm font-bold uppercase tracking-wider text-white transition-all duration-500 hover:bg-right hover:shadow-[0_0_22px_rgba(0,195,255,0.58)]"
+                type="submit"
+              >
+                <span>Sisteme Bağlan</span>
+                <LogIn size={17} />
+              </button>
+            </form>
+
+            <div className="mt-4 min-h-11 rounded border border-blue-400/20 bg-blue-950/20 p-3 text-center text-sm text-blue-200">
+              {status}
+            </div>
+
+            <div className="mt-12 text-center">
+              <p className="inline-flex items-center gap-1 font-mono text-xs text-slate-500">
+                <ShieldCheck size={13} /> V3RII Güvenlik Ağı © 2026
+              </p>
+            </div>
           </div>
         </section>
       </main>
@@ -680,6 +783,99 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </label>
   );
+}
+
+function LoginField({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-slate-400">{label}</span>
+      <div className="relative flex items-center rounded-lg border border-slate-700 bg-[#131b2f] transition-all focus-within:border-cyan-300 focus-within:shadow-[0_0_15px_rgba(0,195,255,0.4),inset_0_0_5px_rgba(0,195,255,0.18)]">
+        <div className="absolute left-3 text-slate-500">{icon}</div>
+        {children}
+      </div>
+    </label>
+  );
+}
+
+function PlanetMark() {
+  return (
+    <svg width="300" height="300" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="callcenterPlanetGrad" cx="30%" cy="30%" r="50%">
+          <stop offset="0%" stopColor="#00c3ff" />
+          <stop offset="100%" stopColor="#000033" />
+        </radialGradient>
+      </defs>
+      <circle cx="50" cy="50" r="40" fill="none" stroke="#00c3ff" strokeDasharray="4 2" strokeWidth="2" />
+      <circle cx="50" cy="50" r="30" fill="none" stroke="#a020f0" strokeWidth="1" />
+      <circle cx="50" cy="50" r="20" fill="url(#callcenterPlanetGrad)" />
+    </svg>
+  );
+}
+
+function SpaceBackground() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    let animationFrame = 0;
+    let width = 0;
+    let height = 0;
+    let stars: { x: number; y: number; radius: number; vx: number; vy: number; color: string }[] = [];
+    const colors = ['#ffffff', '#00c3ff', '#a020f0', '#ffffff', '#ffffff'];
+
+    const initStars = () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      const count = Math.floor((width * height) / 2400);
+      stars = Array.from({ length: count }, () => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: Math.random() * 1.4,
+        vx: (Math.random() - 0.5) * 0.16,
+        vy: (Math.random() - 0.5) * 0.16,
+        color: colors[Math.floor(Math.random() * colors.length)],
+      }));
+    };
+
+    const draw = () => {
+      context.clearRect(0, 0, width, height);
+      context.fillStyle = '#050914';
+      context.fillRect(0, 0, width, height);
+
+      for (const star of stars) {
+        star.x += star.vx;
+        star.y += star.vy;
+        if (star.x < 0 || star.x > width) star.vx *= -1;
+        if (star.y < 0 || star.y > height) star.vy *= -1;
+
+        context.beginPath();
+        context.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+        context.fillStyle = star.color;
+        context.globalAlpha = 0.45 + Math.random() * 0.45;
+        context.fill();
+      }
+
+      context.globalAlpha = 1;
+      animationFrame = window.requestAnimationFrame(draw);
+    };
+
+    initStars();
+    draw();
+    window.addEventListener('resize', initStars);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener('resize', initStars);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="fixed inset-0 z-0 h-full w-full" />;
 }
 
 export default App;
