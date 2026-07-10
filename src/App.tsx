@@ -33,9 +33,13 @@ import {
   type BusinessHour,
   type CalendarException,
   type Company,
+  type CompanyRole,
+  type CompanyUser,
   type ConversationLog,
   type DecisionResult,
   type Department,
+  type LegacyCompanyRole,
+  type PermissionDefinition,
   type RoutingAction,
   type RoutingRule,
 } from './api';
@@ -69,8 +73,8 @@ const loginLanguages = [
 
 type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
-type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'rules' | 'simulator' | 'logs';
-type WorkspaceGroup = 'company-management' | 'operation' | 'monitoring';
+type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'rules' | 'simulator' | 'logs' | 'users' | 'roles';
+type WorkspaceGroup = 'company-management' | 'operation' | 'monitoring' | 'access-management';
 
 const workspacePaths: Record<WorkspaceSection, string> = {
   company: '/firma-yonetimi/firma-karti',
@@ -80,6 +84,8 @@ const workspacePaths: Record<WorkspaceSection, string> = {
   rules: '/operasyon/yonlendirme-kurallari',
   simulator: '/izleme/karar-simulasyonu',
   logs: '/izleme/konusma-loglari',
+  users: '/erisim/kullanicilar',
+  roles: '/erisim/roller-yetkiler',
 };
 
 function getWorkspaceSection(pathname: string): WorkspaceSection {
@@ -458,6 +464,7 @@ function App() {
     'company-management': true,
     operation: true,
     monitoring: true,
+    'access-management': true,
   });
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -473,6 +480,11 @@ function App() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [rules, setRules] = useState<RoutingRule[]>([]);
   const [logs, setLogs] = useState<ConversationLog[]>([]);
+  const [permissions, setPermissions] = useState<PermissionDefinition[]>([]);
+  const [companyRoles, setCompanyRoles] = useState<CompanyRole[]>([]);
+  const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
+  const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
+  const [editingUserAssignmentId, setEditingUserAssignmentId] = useState<number | null>(null);
   const [decision, setDecision] = useState<DecisionResult | null>(null);
   const [status, setStatus] = useState('Hazır');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -510,7 +522,25 @@ function App() {
     callerNumberMasked: '+90 *** *** 0000',
     writeLog: true,
   });
+  const [roleDraft, setRoleDraft] = useState({
+    code: '',
+    name: '',
+    description: '',
+    isActive: true,
+    permissionCodes: [] as string[],
+  });
+  const [userDraft, setUserDraft] = useState({
+    email: '',
+    displayName: '',
+    password: '',
+    companyRoleId: '',
+    legacyRole: 'Agent' as LegacyCompanyRole,
+    isUserActive: true,
+    isAssignmentActive: true,
+  });
   const activeSection = getWorkspaceSection(location.pathname);
+  const hasWorkspacePermission = (permissionCode: string) =>
+    authContext?.isSuperAdmin === true || authContext?.permissionCodes?.includes(permissionCode) === true;
 
   const selectedCompany = useMemo(
     () => companies.find((company) => company.id === selectedCompanyId) ?? null,
@@ -536,27 +566,35 @@ function App() {
     })),
     [],
   );
-  const workspaceSections = useMemo(
+  const allWorkspaceSections = useMemo(
     () => [
-      { id: 'company' as const, group: 'company-management' as const, title: 'Firma Kartı', description: 'Ana firma kartı ve yasal bilgiler', icon: <Building2 size={16} /> },
-      { id: 'hours' as const, group: 'company-management' as const, title: 'Çalışma Saatleri', description: 'Haftalık açık ve kapalı saatler', icon: <Clock3 size={16} /> },
-      { id: 'exceptions' as const, group: 'company-management' as const, title: 'Özel Günler', description: 'Tatil, yarım gün ve kapalı günler', icon: <CalendarDays size={16} /> },
-      { id: 'departments' as const, group: 'operation' as const, title: 'Departman ve Kuyruklar', description: 'Ekip, kuyruk ve dil tanımları', icon: <Headphones size={16} /> },
-      { id: 'rules' as const, group: 'operation' as const, title: 'Yönlendirme Kuralları', description: 'AI, canlı aktarım ve aksiyonlar', icon: <GitBranch size={16} /> },
-      { id: 'simulator' as const, group: 'monitoring' as const, title: 'Karar Simülasyonu', description: 'Kural sonucunu test et', icon: <Play size={16} /> },
-      { id: 'logs' as const, group: 'monitoring' as const, title: 'Konuşma Logları', description: 'Çağrı karar kayıtları', icon: <History size={16} /> },
+      { id: 'company' as const, group: 'company-management' as const, permission: 'company.view', title: 'Firma Kartı', description: 'Ana firma kartı ve yasal bilgiler', icon: <Building2 size={16} /> },
+      { id: 'hours' as const, group: 'company-management' as const, permission: 'calendar.view', title: 'Çalışma Saatleri', description: 'Haftalık açık ve kapalı saatler', icon: <Clock3 size={16} /> },
+      { id: 'exceptions' as const, group: 'company-management' as const, permission: 'calendar.view', title: 'Özel Günler', description: 'Tatil, yarım gün ve kapalı günler', icon: <CalendarDays size={16} /> },
+      { id: 'departments' as const, group: 'operation' as const, permission: 'departments.view', title: 'Departman ve Kuyruklar', description: 'Ekip, kuyruk ve dil tanımları', icon: <Headphones size={16} /> },
+      { id: 'rules' as const, group: 'operation' as const, permission: 'routing.view', title: 'Yönlendirme Kuralları', description: 'AI, canlı aktarım ve aksiyonlar', icon: <GitBranch size={16} /> },
+      { id: 'simulator' as const, group: 'monitoring' as const, permission: 'simulator.execute', title: 'Karar Simülasyonu', description: 'Kural sonucunu test et', icon: <Play size={16} /> },
+      { id: 'logs' as const, group: 'monitoring' as const, permission: 'logs.view', title: 'Konuşma Logları', description: 'Çağrı karar kayıtları', icon: <History size={16} /> },
+      { id: 'users' as const, group: 'access-management' as const, permission: 'users.view', title: 'Firma Kullanıcıları', description: 'Kullanıcı ve firma rolü atamaları', icon: <UserRound size={16} /> },
+      { id: 'roles' as const, group: 'access-management' as const, permission: 'roles.view', title: 'Roller ve Yetkiler', description: 'Rol bazlı modül ve işlem izinleri', icon: <ShieldCheck size={16} /> },
     ],
     [],
+  );
+  const workspaceSections = useMemo(
+    () => allWorkspaceSections.filter((section) =>
+      authContext?.isSuperAdmin || authContext?.permissionCodes?.includes(section.permission)),
+    [allWorkspaceSections, authContext],
   );
   const workspaceGroups = useMemo(
     () => [
       { id: 'company-management' as const, title: 'Firma Yönetimi', icon: <Building2 size={18} /> },
       { id: 'operation' as const, title: 'Operasyon Tanımları', icon: <SlidersHorizontal size={18} /> },
       { id: 'monitoring' as const, title: 'İzleme ve Test', icon: <History size={18} /> },
+      { id: 'access-management' as const, title: 'Erişim Yönetimi', icon: <ShieldCheck size={18} /> },
     ],
     [],
   );
-  const activeWorkspaceSection = workspaceSections.find((section) => section.id === activeSection) ?? workspaceSections[0];
+  const activeWorkspaceSection = workspaceSections.find((section) => section.id === activeSection) ?? workspaceSections[0] ?? allWorkspaceSections[0];
 
   function selectWorkspaceSection(section: WorkspaceSection) {
     const definition = workspaceSections.find((item) => item.id === section);
@@ -571,14 +609,29 @@ function App() {
     if (token) {
       void bootstrap();
     } else {
-      void loadLoginCompanies();
+      setIsLoginCompaniesLoading(true);
+      void callCenterApi.loginCompanies()
+        .then(setLoginCompanies)
+        .catch(() => {
+          setLoginCompanies([]);
+          setStatus(loginText.companyLoadFailed);
+        })
+        .finally(() => setIsLoginCompaniesLoading(false));
     }
-  }, []);
+  }, [loginText.companyLoadFailed]);
 
   useEffect(() => {
-    if (!selectedCompanyId) return;
-    void refreshCompanyData(selectedCompanyId);
-  }, [selectedCompanyId]);
+    if (!selectedCompanyId || !authContext) return;
+    void refreshCompanyData(selectedCompanyId, authContext);
+  }, [selectedCompanyId, authContext]);
+
+  useEffect(() => {
+    if (!authContext || workspaceSections.some((section) => section.id === activeSection)) return;
+    const firstSection = workspaceSections[0];
+    if (firstSection) {
+      navigate(workspacePaths[firstSection.id], { replace: true });
+    }
+  }, [activeSection, authContext, navigate, workspaceSections]);
 
   useEffect(() => {
     if (!isUserMenuOpen) return;
@@ -622,19 +675,6 @@ function App() {
     setAuthContext(context);
     setSelectedCompanyId(context.selectedCompanyId ?? context.companies[0]?.id ?? null);
     await refreshCompanies(context);
-  }
-
-  async function loadLoginCompanies() {
-    try {
-      setIsLoginCompaniesLoading(true);
-      const data = await callCenterApi.loginCompanies();
-      setLoginCompanies(data);
-    } catch {
-      setLoginCompanies([]);
-      setStatus(loginText.companyLoadFailed);
-    } finally {
-      setIsLoginCompaniesLoading(false);
-    }
   }
 
   async function login(event?: FormEvent<HTMLFormElement>) {
@@ -691,6 +731,9 @@ function App() {
     setDepartments([]);
     setRules([]);
     setLogs([]);
+    setPermissions([]);
+    setCompanyRoles([]);
+    setCompanyUsers([]);
     setDecision(null);
     setStatus('Çıkış yapıldı');
   }
@@ -707,21 +750,35 @@ function App() {
     }
   }
 
-  async function refreshCompanyData(companyId: number) {
+  async function refreshCompanyData(companyId: number, context = authContext) {
     setStatus('Firma kuralları yükleniyor');
-    const [hoursData, exceptionData, departmentData, ruleData, logData] = await Promise.all([
-      callCenterApi.businessHours(companyId),
-      callCenterApi.calendarExceptions(companyId),
-      callCenterApi.departments(companyId),
-      callCenterApi.routingRules(companyId),
-      callCenterApi.logs(companyId),
+    const can = (permission: string) => context?.isSuperAdmin || context?.permissionCodes?.includes(permission);
+    const [hoursData, exceptionData, departmentData, ruleData, logData, permissionData, roleData, userData] = await Promise.all([
+      can('calendar.view') ? callCenterApi.businessHours(companyId) : Promise.resolve([]),
+      can('calendar.view') ? callCenterApi.calendarExceptions(companyId) : Promise.resolve([]),
+      can('departments.view') ? callCenterApi.departments(companyId) : Promise.resolve([]),
+      can('routing.view') ? callCenterApi.routingRules(companyId) : Promise.resolve([]),
+      can('logs.view') ? callCenterApi.logs(companyId) : Promise.resolve([]),
+      can('roles.view') ? callCenterApi.permissions(companyId) : Promise.resolve([]),
+      can('roles.view') ? callCenterApi.companyRoles(companyId) : Promise.resolve([]),
+      can('users.view') ? callCenterApi.companyUsers(companyId) : Promise.resolve([]),
     ]);
     setBusinessHours(hoursData);
     setExceptions(exceptionData);
     setDepartments(departmentData);
     setRules(ruleData);
     setLogs(logData);
+    setPermissions(permissionData);
+    setCompanyRoles(roleData);
+    setCompanyUsers(userData);
     setStatus('Hazır');
+  }
+
+  async function selectCompany(companyId: number) {
+    setStatus('Firma bağlamı değiştiriliyor');
+    const context = await callCenterApi.authContext(companyId);
+    setAuthContext(context);
+    setSelectedCompanyId(companyId);
   }
 
   async function saveCompany() {
@@ -788,6 +845,102 @@ function App() {
     });
     setRules((items) => [...items, created].sort((a, b) => a.priority - b.priority));
     setRuleDraft((draft) => ({ ...draft, name: '', matchIntent: '', message: '' }));
+  }
+
+  function editRole(role: CompanyRole) {
+    setEditingRoleId(role.id);
+    setRoleDraft({
+      code: role.code,
+      name: role.name,
+      description: role.description ?? '',
+      isActive: role.isActive,
+      permissionCodes: role.permissionCodes,
+    });
+  }
+
+  function resetRoleDraft() {
+    setEditingRoleId(null);
+    setRoleDraft({ code: '', name: '', description: '', isActive: true, permissionCodes: [] });
+  }
+
+  function toggleRolePermission(permissionCode: string) {
+    setRoleDraft((draft) => ({
+      ...draft,
+      permissionCodes: draft.permissionCodes.includes(permissionCode)
+        ? draft.permissionCodes.filter((code) => code !== permissionCode)
+        : [...draft.permissionCodes, permissionCode],
+    }));
+  }
+
+  async function saveRole() {
+    if (!selectedCompanyId || !roleDraft.code.trim() || !roleDraft.name.trim()) return;
+    setStatus(editingRoleId ? 'Rol güncelleniyor' : 'Rol oluşturuluyor');
+    const payload = {
+      code: roleDraft.code,
+      name: roleDraft.name,
+      description: roleDraft.description,
+      isActive: roleDraft.isActive,
+      permissionCodes: roleDraft.permissionCodes,
+    };
+    const saved = editingRoleId
+      ? await callCenterApi.updateCompanyRole(selectedCompanyId, editingRoleId, payload)
+      : await callCenterApi.createCompanyRole(selectedCompanyId, payload);
+    setCompanyRoles((items) => [...items.filter((item) => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name, 'tr')));
+    resetRoleDraft();
+    setStatus('Rol kaydedildi');
+  }
+
+  function editCompanyUser(user: CompanyUser) {
+    setEditingUserAssignmentId(user.assignmentId);
+    setUserDraft({
+      email: user.email,
+      displayName: user.displayName,
+      password: '',
+      companyRoleId: user.companyRoleId?.toString() ?? '',
+      legacyRole: user.legacyRole,
+      isUserActive: user.isUserActive,
+      isAssignmentActive: user.isAssignmentActive,
+    });
+  }
+
+  function resetUserDraft() {
+    setEditingUserAssignmentId(null);
+    setUserDraft({
+      email: '',
+      displayName: '',
+      password: '',
+      companyRoleId: '',
+      legacyRole: 'Agent',
+      isUserActive: true,
+      isAssignmentActive: true,
+    });
+  }
+
+  async function saveCompanyUser() {
+    if (!selectedCompanyId || !userDraft.email.trim() || !userDraft.displayName.trim()) return;
+    setStatus(editingUserAssignmentId ? 'Kullanıcı güncelleniyor' : 'Kullanıcı oluşturuluyor');
+    const companyRoleId = userDraft.companyRoleId ? Number(userDraft.companyRoleId) : null;
+    const saved = editingUserAssignmentId
+      ? await callCenterApi.updateCompanyUser(selectedCompanyId, editingUserAssignmentId, {
+          displayName: userDraft.displayName,
+          password: userDraft.password || undefined,
+          companyRoleId,
+          legacyRole: userDraft.legacyRole,
+          isUserActive: userDraft.isUserActive,
+          isAssignmentActive: userDraft.isAssignmentActive,
+        })
+      : await callCenterApi.createCompanyUser(selectedCompanyId, {
+          email: userDraft.email,
+          displayName: userDraft.displayName,
+          password: userDraft.password || undefined,
+          companyRoleId,
+          legacyRole: userDraft.legacyRole,
+          isActive: userDraft.isUserActive && userDraft.isAssignmentActive,
+        });
+    setCompanyUsers((items) => [...items.filter((item) => item.assignmentId !== saved.assignmentId), saved]
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'tr')));
+    resetUserDraft();
+    setStatus('Kullanıcı kaydedildi');
   }
 
   async function simulate() {
@@ -988,6 +1141,7 @@ function App() {
         <nav className="module-list" aria-label="Call center modülleri">
           {workspaceGroups.map((group) => {
             const groupSections = workspaceSections.filter((section) => section.group === group.id);
+            if (groupSections.length === 0) return null;
             const groupHasActiveSection = groupSections.some((section) => section.id === activeSection);
             const isExpanded = expandedWorkspaceGroups[group.id];
 
@@ -1042,7 +1196,7 @@ function App() {
               className={company.id === selectedCompanyId ? 'company-item active' : 'company-item'}
               key={company.id}
               type="button"
-              onClick={() => setSelectedCompanyId(company.id)}
+              onClick={() => void selectCompany(company.id)}
             >
               <Building2 size={16} />
               <span>{company.name}</span>
@@ -1085,8 +1239,8 @@ function App() {
                   </div>
                   <div>
                     <span>Yetki</span>
-                    <strong>{authContext.isSuperAdmin ? 'Süper admin' : 'Firma admini'}</strong>
-                    <small>{authContext.isSuperAdmin ? 'Firma seçmeden giriş yapabilir' : 'Firma bazlı işlem yapar'}</small>
+                    <strong>{authContext.selectedRoleName ?? (authContext.isSuperAdmin ? 'Süper admin' : 'Firma kullanıcısı')}</strong>
+                    <small>{authContext.isSuperAdmin ? 'Firma seçmeden giriş yapabilir' : `${authContext.permissionCodes?.length ?? 0} işlem izni`}</small>
                   </div>
                   <div>
                     <span>Firma</span>
@@ -1185,19 +1339,20 @@ function App() {
                     <label className="check">
                       <input
                         checked={item?.isClosed ?? dayIndex === 0}
+                        disabled={!hasWorkspacePermission('calendar.manage')}
                         type="checkbox"
                         onChange={(event) => void saveBusinessHour(dayIndex, { isClosed: event.target.checked })}
                       />
                       Kapalı
                     </label>
                     <input
-                      disabled={item?.isClosed}
+                      disabled={item?.isClosed || !hasWorkspacePermission('calendar.manage')}
                       type="time"
                       value={(item?.openTime ?? '09:00').slice(0, 5)}
                       onChange={(event) => void saveBusinessHour(dayIndex, { openTime: event.target.value })}
                     />
                     <input
-                      disabled={item?.isClosed}
+                      disabled={item?.isClosed || !hasWorkspacePermission('calendar.manage')}
                       type="time"
                       value={(item?.closeTime ?? '18:00').slice(0, 5)}
                       onChange={(event) => void saveBusinessHour(dayIndex, { closeTime: event.target.value })}
@@ -1210,6 +1365,7 @@ function App() {
 
           {activeSection === 'exceptions' && <section className="panel company-panel">
             <PanelTitle icon={<CalendarDays size={18} />} title="Özel Gün / İstisna" />
+            {hasWorkspacePermission('calendar.manage') && <>
             <div className="form-grid two compact">
               <Field label="Tarih">
                 <input type="date" value={exceptionDraft.date} onChange={(event) => setExceptionDraft({ ...exceptionDraft, date: event.target.value })} />
@@ -1232,6 +1388,7 @@ function App() {
             <button className="secondary-action" type="button" onClick={createException}>
               <Plus size={16} /> İstisna ekle
             </button>
+            </>}
             <div className="table-list">
               {exceptions.map((item) => (
                 <div className="list-row" key={item.id}>
@@ -1245,12 +1402,14 @@ function App() {
 
           {activeSection === 'departments' && <section className="panel company-panel">
             <PanelTitle icon={<Headphones size={18} />} title="Departmanlar" />
+            {hasWorkspacePermission('departments.manage') && (
             <div className="inline-form">
               <input placeholder="Kod" value={departmentDraft.code} onChange={(event) => setDepartmentDraft({ ...departmentDraft, code: event.target.value })} />
               <input placeholder="Departman adı" value={departmentDraft.name} onChange={(event) => setDepartmentDraft({ ...departmentDraft, name: event.target.value })} />
               <input placeholder="Dil" value={departmentDraft.languageCode} onChange={(event) => setDepartmentDraft({ ...departmentDraft, languageCode: event.target.value })} />
               <button type="button" onClick={createDepartment}><Plus size={15} /></button>
             </div>
+            )}
             <div className="chip-row">
               {departments.map((department) => (
                 <span className="chip" key={department.id}>{department.name}</span>
@@ -1260,6 +1419,7 @@ function App() {
 
           {activeSection === 'rules' && <section className="panel company-panel">
             <PanelTitle icon={<GitBranch size={18} />} title="Yönlendirme Kuralları" />
+            {hasWorkspacePermission('routing.manage') && (
             <div className="rule-builder">
               <input placeholder="Kural adı" value={ruleDraft.name} onChange={(event) => setRuleDraft({ ...ruleDraft, name: event.target.value })} />
               <input placeholder="Intent ör: reservation" value={ruleDraft.matchIntent} onChange={(event) => setRuleDraft({ ...ruleDraft, matchIntent: event.target.value })} />
@@ -1279,6 +1439,7 @@ function App() {
               </select>
               <button type="button" onClick={createRule}><Plus size={15} /> Kural ekle</button>
             </div>
+            )}
             <div className="table-list">
               {rules.map((rule) => (
                 <div className="list-row rule-row" key={rule.id}>
@@ -1287,6 +1448,155 @@ function App() {
                   <small>{actionLabels[String(rule.action)] ?? String(rule.action)}</small>
                 </div>
               ))}
+            </div>
+          </section>}
+
+          {activeSection === 'users' && <section className="panel company-panel">
+            <PanelTitle icon={<UserRound size={18} />} title="Firma Kullanıcıları" />
+            <div className="definition-layout">
+              <div className="definition-form">
+                <div className="section-heading">
+                  <div>
+                    <strong>{editingUserAssignmentId ? 'Kullanıcıyı düzenle' : 'Yeni kullanıcı'}</strong>
+                    <small>Kullanıcı hesabı bu firmaya seçilen rol ile bağlanır.</small>
+                  </div>
+                  {editingUserAssignmentId && <button className="text-action" type="button" onClick={resetUserDraft}>Yeni kayıt</button>}
+                </div>
+                <Field label="E-posta">
+                  <input
+                    disabled={editingUserAssignmentId !== null}
+                    type="email"
+                    value={userDraft.email}
+                    onChange={(event) => setUserDraft({ ...userDraft, email: event.target.value })}
+                  />
+                </Field>
+                <Field label="Ad soyad / görünen ad">
+                  <input value={userDraft.displayName} onChange={(event) => setUserDraft({ ...userDraft, displayName: event.target.value })} />
+                </Field>
+                <Field label={editingUserAssignmentId ? 'Yeni şifre (değişmeyecekse boş)' : 'Geçici şifre'}>
+                  <input type="password" value={userDraft.password} onChange={(event) => setUserDraft({ ...userDraft, password: event.target.value })} />
+                </Field>
+                <Field label="Firma rolü">
+                  <select value={userDraft.companyRoleId} onChange={(event) => setUserDraft({ ...userDraft, companyRoleId: event.target.value })}>
+                    <option value="">Özel rol seçilmedi</option>
+                    {companyRoles.filter((role) => role.isActive).map((role) => (
+                      <option key={role.id} value={role.id}>{role.name}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Temel görev tipi">
+                  <select value={userDraft.legacyRole} onChange={(event) => setUserDraft({ ...userDraft, legacyRole: event.target.value as LegacyCompanyRole })}>
+                    <option value="Agent">Temsilci</option>
+                    <option value="Supervisor">Süpervizör</option>
+                    <option value="CompanyAdmin">Firma yöneticisi</option>
+                  </select>
+                </Field>
+                <div className="check-stack">
+                  <label className="check"><input checked={userDraft.isUserActive} type="checkbox" onChange={(event) => setUserDraft({ ...userDraft, isUserActive: event.target.checked })} /> Kullanıcı hesabı aktif</label>
+                  <label className="check"><input checked={userDraft.isAssignmentActive} type="checkbox" onChange={(event) => setUserDraft({ ...userDraft, isAssignmentActive: event.target.checked })} /> Firma ataması aktif</label>
+                </div>
+                {hasWorkspacePermission('users.manage') && (
+                  <button className="save-button" type="button" onClick={saveCompanyUser}>
+                    <Save size={16} /> {editingUserAssignmentId ? 'Kullanıcıyı güncelle' : 'Kullanıcıyı ekle'}
+                  </button>
+                )}
+              </div>
+              <div className="definition-list">
+                <div className="section-heading">
+                  <div>
+                    <strong>Tanımlı kullanıcılar</strong>
+                    <small>{companyUsers.length} firma kullanıcısı</small>
+                  </div>
+                </div>
+                {companyUsers.map((user) => (
+                  <button className="definition-row" key={user.assignmentId} type="button" onClick={() => editCompanyUser(user)}>
+                    <span className={user.isUserActive && user.isAssignmentActive ? 'status-dot active' : 'status-dot'} />
+                    <span>
+                      <strong>{user.displayName}</strong>
+                      <small>{user.email}</small>
+                    </span>
+                    <span className="definition-meta">
+                      <strong>{user.companyRoleName ?? user.legacyRole}</strong>
+                      <small>{user.isAssignmentActive ? 'Atama aktif' : 'Atama pasif'}</small>
+                    </span>
+                  </button>
+                ))}
+                {companyUsers.length === 0 && <div className="empty-state">Bu firmaya atanmış kullanıcı bulunmuyor.</div>}
+              </div>
+            </div>
+          </section>}
+
+          {activeSection === 'roles' && <section className="panel company-panel">
+            <PanelTitle icon={<ShieldCheck size={18} />} title="Roller ve Yetkiler" />
+            <div className="definition-layout role-layout">
+              <div className="definition-form">
+                <div className="section-heading">
+                  <div>
+                    <strong>{editingRoleId ? 'Rolü düzenle' : 'Yeni firma rolü'}</strong>
+                    <small>İzinler yalnızca seçili firma içinde geçerlidir.</small>
+                  </div>
+                  {editingRoleId && <button className="text-action" type="button" onClick={resetRoleDraft}>Yeni kayıt</button>}
+                </div>
+                <div className="form-grid two">
+                  <Field label="Rol kodu">
+                    <input value={roleDraft.code} onChange={(event) => setRoleDraft({ ...roleDraft, code: event.target.value })} placeholder="supervisor-tr" />
+                  </Field>
+                  <Field label="Rol adı">
+                    <input value={roleDraft.name} onChange={(event) => setRoleDraft({ ...roleDraft, name: event.target.value })} placeholder="Süpervizör" />
+                  </Field>
+                </div>
+                <Field label="Açıklama">
+                  <textarea value={roleDraft.description} onChange={(event) => setRoleDraft({ ...roleDraft, description: event.target.value })} />
+                </Field>
+                <label className="check"><input checked={roleDraft.isActive} type="checkbox" onChange={(event) => setRoleDraft({ ...roleDraft, isActive: event.target.checked })} /> Rol aktif</label>
+                <div className="permission-groups">
+                  {[...new Set(permissions.map((permission) => permission.module))].map((module) => (
+                    <div className="permission-group" key={module}>
+                      <strong>{module}</strong>
+                      {permissions.filter((permission) => permission.module === module).map((permission) => (
+                        <label className="permission-option" key={permission.code}>
+                          <input
+                            checked={roleDraft.permissionCodes.includes(permission.code)}
+                            type="checkbox"
+                            onChange={() => toggleRolePermission(permission.code)}
+                          />
+                          <span>
+                            <strong>{permission.name}</strong>
+                            <small>{permission.description}</small>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                {hasWorkspacePermission('roles.manage') && (
+                  <button className="save-button" type="button" onClick={saveRole}>
+                    <Save size={16} /> {editingRoleId ? 'Rolü güncelle' : 'Rolü oluştur'}
+                  </button>
+                )}
+              </div>
+              <div className="definition-list">
+                <div className="section-heading">
+                  <div>
+                    <strong>Firma rolleri</strong>
+                    <small>{companyRoles.length} rol tanımlı</small>
+                  </div>
+                </div>
+                {companyRoles.map((role) => (
+                  <button className={editingRoleId === role.id ? 'definition-row selected' : 'definition-row'} key={role.id} type="button" onClick={() => editRole(role)}>
+                    <span className={role.isActive ? 'status-dot active' : 'status-dot'} />
+                    <span>
+                      <strong>{role.name}</strong>
+                      <small>{role.code}</small>
+                    </span>
+                    <span className="definition-meta">
+                      <strong>{role.permissionCodes.length} izin</strong>
+                      <small>{role.isSystemRole ? 'Sistem rolü' : 'Firma rolü'}</small>
+                    </span>
+                  </button>
+                ))}
+                {companyRoles.length === 0 && <div className="empty-state">Bu firma için henüz özel rol tanımlanmadı.</div>}
+              </div>
             </div>
           </section>}
 

@@ -50,6 +50,44 @@ export interface AuthContext {
   isSuperAdmin: boolean;
   selectedCompanyId?: number | null;
   companies: AuthCompany[];
+  selectedRoleName?: string | null;
+  permissionCodes?: string[];
+}
+
+export interface PermissionDefinition {
+  id: number;
+  code: string;
+  name: string;
+  module: string;
+  description?: string | null;
+  isActive: boolean;
+}
+
+export interface CompanyRole {
+  id: number;
+  companyId: number;
+  code: string;
+  name: string;
+  description?: string | null;
+  isSystemRole: boolean;
+  isActive: boolean;
+  permissionCodes: string[];
+}
+
+export type LegacyCompanyRole = 'Agent' | 'Supervisor' | 'CompanyAdmin';
+
+export interface CompanyUser {
+  assignmentId: number;
+  companyId: number;
+  userId: number;
+  email: string;
+  displayName: string;
+  companyRoleId?: number | null;
+  companyRoleName?: string | null;
+  legacyRole: LegacyCompanyRole;
+  isUserActive: boolean;
+  isAssignmentActive: boolean;
+  createdAtUtc: string;
 }
 
 export interface LoginResponse {
@@ -211,4 +249,40 @@ export const callCenterApi = {
     api
       .get<ConversationLog[]>('/api/conversation-logs', { params: companyId ? { companyId } : undefined })
       .then((x) => x.data),
+  permissions: (companyId: number) =>
+    api.get<PermissionDefinition[]>(`/api/companies/${companyId}/access/permissions`).then((x) => x.data),
+  companyRoles: (companyId: number) =>
+    api.get<CompanyRole[]>(`/api/companies/${companyId}/access/roles`).then((x) => x.data),
+  createCompanyRole: (companyId: number, payload: Omit<CompanyRole, 'id' | 'companyId' | 'isSystemRole'>) =>
+    api.post<CompanyRole>(`/api/companies/${companyId}/access/roles`, payload).then((x) => x.data),
+  updateCompanyRole: (
+    companyId: number,
+    roleId: number,
+    payload: Omit<CompanyRole, 'id' | 'companyId' | 'isSystemRole'>,
+  ) => api.put<CompanyRole>(`/api/companies/${companyId}/access/roles/${roleId}`, payload).then((x) => x.data),
+  companyUsers: (companyId: number) =>
+    api.get<CompanyUser[]>(`/api/companies/${companyId}/access/users`).then((x) => x.data),
+  createCompanyUser: (
+    companyId: number,
+    payload: {
+      email: string;
+      displayName: string;
+      password?: string;
+      companyRoleId?: number | null;
+      legacyRole: LegacyCompanyRole;
+      isActive: boolean;
+    },
+  ) => api.post<CompanyUser>(`/api/companies/${companyId}/access/users`, payload).then((x) => x.data),
+  updateCompanyUser: (
+    companyId: number,
+    assignmentId: number,
+    payload: {
+      displayName: string;
+      password?: string;
+      companyRoleId?: number | null;
+      legacyRole: LegacyCompanyRole;
+      isUserActive: boolean;
+      isAssignmentActive: boolean;
+    },
+  ) => api.put<CompanyUser>(`/api/companies/${companyId}/access/users/${assignmentId}`, payload).then((x) => x.data),
 };
