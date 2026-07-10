@@ -595,23 +595,27 @@
   inset: 0;
   z-index: 80;
   display: flex;
-  justify-content: flex-end;
-  background: rgba(15, 23, 42, 0.42);
-  backdrop-filter: blur(2px);
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
 }
 
 .form-drawer {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(460px, 100vw);
-  height: 100vh;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(780px, calc(100vh - 48px));
   background: #ffffff;
-  box-shadow: -18px 0 48px rgba(15, 23, 42, 0.2);
-  animation: drawer-enter 180ms ease-out;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 14px;
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.28);
+  animation: dialog-enter 180ms ease-out;
 }
 
 .form-drawer.wide {
-  width: min(620px, 100vw);
+  width: min(760px, calc(100vw - 32px));
 }
 
 .form-drawer-header {
@@ -619,7 +623,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
-  padding: 20px;
+  padding: 22px 24px;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -647,7 +651,7 @@
   align-content: start;
   gap: 14px;
   min-height: 0;
-  padding: 20px;
+  padding: 22px 24px;
   overflow-y: auto;
 }
 
@@ -655,9 +659,9 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 14px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
+  padding: 16px 24px;
+  border-top: 1px solid #e8edf2;
+  background: #fbfcfe;
 }
 
 .form-drawer-footer .secondary-action,
@@ -665,9 +669,9 @@
   min-width: 120px;
 }
 
-@keyframes drawer-enter {
-  from { transform: translateX(24px); opacity: 0.7; }
-  to { transform: translateX(0); opacity: 1; }
+@keyframes dialog-enter {
+  from { transform: translateY(14px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
 .panel > .paged-grid {
@@ -1307,8 +1311,18 @@ input:disabled {
     box-sizing: border-box;
   }
 
+  .drawer-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
   .form-drawer,
   .form-drawer.wide {
-    width: 100vw;
+    width: 100%;
+    max-height: min(90vh, 760px);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 14px 14px 0 0;
   }
 }

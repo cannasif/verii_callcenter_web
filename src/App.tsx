@@ -506,6 +506,7 @@ function App() {
   const [isExceptionFormOpen, setIsExceptionFormOpen] = useState(false);
   const [isDepartmentFormOpen, setIsDepartmentFormOpen] = useState(false);
   const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
+  const [isFormSaving, setIsFormSaving] = useState(false);
   const [savingBusinessHour, setSavingBusinessHour] = useState<number | null>(null);
   const [gridRefreshVersion, setGridRefreshVersion] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -889,15 +890,22 @@ function App() {
   async function createException() {
     if (!selectedCompanyId || !exceptionDraft.title.trim()) return;
     setStatus('Özel gün kaydediliyor');
-    await callCenterApi.createCalendarException(selectedCompanyId, {
-      ...exceptionDraft,
-      openTime: exceptionDraft.isClosed ? null : exceptionDraft.openTime,
-      closeTime: exceptionDraft.isClosed ? null : exceptionDraft.closeTime,
-    });
-    setGridRefreshVersion((version) => version + 1);
-    resetExceptionDraft();
-    setIsExceptionFormOpen(false);
-    setStatus('Özel gün kaydedildi');
+    setIsFormSaving(true);
+    try {
+      await callCenterApi.createCalendarException(selectedCompanyId, {
+        ...exceptionDraft,
+        openTime: exceptionDraft.isClosed ? null : exceptionDraft.openTime,
+        closeTime: exceptionDraft.isClosed ? null : exceptionDraft.closeTime,
+      });
+      setGridRefreshVersion((version) => version + 1);
+      resetExceptionDraft();
+      setIsExceptionFormOpen(false);
+      setStatus('Özel gün kaydedildi');
+    } catch {
+      setStatus('Özel gün kaydedilemedi');
+    } finally {
+      setIsFormSaving(false);
+    }
   }
 
   function resetDepartmentDraft() {
@@ -907,15 +915,22 @@ function App() {
   async function createDepartment() {
     if (!selectedCompanyId || !departmentDraft.code.trim() || !departmentDraft.name.trim()) return;
     setStatus('Departman kaydediliyor');
-    const created = await callCenterApi.createDepartment(selectedCompanyId, {
-      ...departmentDraft,
-      languageCode: departmentDraft.languageCode || null,
-    });
-    setDepartments((items) => [...items, created]);
-    setGridRefreshVersion((version) => version + 1);
-    resetDepartmentDraft();
-    setIsDepartmentFormOpen(false);
-    setStatus('Departman kaydedildi');
+    setIsFormSaving(true);
+    try {
+      const created = await callCenterApi.createDepartment(selectedCompanyId, {
+        ...departmentDraft,
+        languageCode: departmentDraft.languageCode || null,
+      });
+      setDepartments((items) => [...items, created]);
+      setGridRefreshVersion((version) => version + 1);
+      resetDepartmentDraft();
+      setIsDepartmentFormOpen(false);
+      setStatus('Departman kaydedildi');
+    } catch {
+      setStatus('Departman kaydedilemedi');
+    } finally {
+      setIsFormSaving(false);
+    }
   }
 
   function resetRuleDraft() {
@@ -929,18 +944,25 @@ function App() {
   async function createRule() {
     if (!selectedCompanyId || !ruleDraft.name.trim()) return;
     setStatus('Yönlendirme kuralı kaydediliyor');
-    await callCenterApi.createRoutingRule(selectedCompanyId, {
-      ...ruleDraft,
-      action: ruleDraft.action as RoutingAction,
-      targetDepartmentId: ruleDraft.targetDepartmentId ? Number(ruleDraft.targetDepartmentId) : null,
-      matchIntent: ruleDraft.matchIntent || null,
-      matchLanguageCode: ruleDraft.matchLanguageCode || null,
-      message: ruleDraft.message || null,
-    });
-    setGridRefreshVersion((version) => version + 1);
-    resetRuleDraft();
-    setIsRuleFormOpen(false);
-    setStatus('Yönlendirme kuralı kaydedildi');
+    setIsFormSaving(true);
+    try {
+      await callCenterApi.createRoutingRule(selectedCompanyId, {
+        ...ruleDraft,
+        action: ruleDraft.action as RoutingAction,
+        targetDepartmentId: ruleDraft.targetDepartmentId ? Number(ruleDraft.targetDepartmentId) : null,
+        matchIntent: ruleDraft.matchIntent || null,
+        matchLanguageCode: ruleDraft.matchLanguageCode || null,
+        message: ruleDraft.message || null,
+      });
+      setGridRefreshVersion((version) => version + 1);
+      resetRuleDraft();
+      setIsRuleFormOpen(false);
+      setStatus('Yönlendirme kuralı kaydedildi');
+    } catch {
+      setStatus('Yönlendirme kuralı kaydedilemedi');
+    } finally {
+      setIsFormSaving(false);
+    }
   }
 
   function editRole(role: CompanyRole) {
@@ -972,21 +994,28 @@ function App() {
   async function saveRole() {
     if (!selectedCompanyId || !roleDraft.code.trim() || !roleDraft.name.trim()) return;
     setStatus(editingRoleId ? 'Rol güncelleniyor' : 'Rol oluşturuluyor');
-    const payload = {
-      code: roleDraft.code,
-      name: roleDraft.name,
-      description: roleDraft.description,
-      isActive: roleDraft.isActive,
-      permissionCodes: roleDraft.permissionCodes,
-    };
-    const saved = editingRoleId
-      ? await callCenterApi.updateCompanyRole(selectedCompanyId, editingRoleId, payload)
-      : await callCenterApi.createCompanyRole(selectedCompanyId, payload);
-    setCompanyRoles((items) => [...items.filter((item) => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name, 'tr')));
-    setGridRefreshVersion((version) => version + 1);
-    resetRoleDraft();
-    setIsRoleFormOpen(false);
-    setStatus('Rol kaydedildi');
+    setIsFormSaving(true);
+    try {
+      const payload = {
+        code: roleDraft.code,
+        name: roleDraft.name,
+        description: roleDraft.description,
+        isActive: roleDraft.isActive,
+        permissionCodes: roleDraft.permissionCodes,
+      };
+      const saved = editingRoleId
+        ? await callCenterApi.updateCompanyRole(selectedCompanyId, editingRoleId, payload)
+        : await callCenterApi.createCompanyRole(selectedCompanyId, payload);
+      setCompanyRoles((items) => [...items.filter((item) => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name, 'tr')));
+      setGridRefreshVersion((version) => version + 1);
+      resetRoleDraft();
+      setIsRoleFormOpen(false);
+      setStatus('Rol kaydedildi');
+    } catch {
+      setStatus('Rol kaydedilemedi');
+    } finally {
+      setIsFormSaving(false);
+    }
   }
 
   function editCompanyUser(user: CompanyUser) {
@@ -1019,30 +1048,37 @@ function App() {
   async function saveCompanyUser() {
     if (!selectedCompanyId || !userDraft.email.trim() || !userDraft.displayName.trim()) return;
     setStatus(editingUserAssignmentId ? 'Kullanıcı güncelleniyor' : 'Kullanıcı oluşturuluyor');
-    const companyRoleId = userDraft.companyRoleId ? Number(userDraft.companyRoleId) : null;
-    if (editingUserAssignmentId) {
-      await callCenterApi.updateCompanyUser(selectedCompanyId, editingUserAssignmentId, {
-          displayName: userDraft.displayName,
-          password: userDraft.password || undefined,
-          companyRoleId,
-          legacyRole: userDraft.legacyRole,
-          isUserActive: userDraft.isUserActive,
-          isAssignmentActive: userDraft.isAssignmentActive,
-        });
-    } else {
-      await callCenterApi.createCompanyUser(selectedCompanyId, {
-          email: userDraft.email,
-          displayName: userDraft.displayName,
-          password: userDraft.password || undefined,
-          companyRoleId,
-          legacyRole: userDraft.legacyRole,
-          isActive: userDraft.isUserActive && userDraft.isAssignmentActive,
-        });
+    setIsFormSaving(true);
+    try {
+      const companyRoleId = userDraft.companyRoleId ? Number(userDraft.companyRoleId) : null;
+      if (editingUserAssignmentId) {
+        await callCenterApi.updateCompanyUser(selectedCompanyId, editingUserAssignmentId, {
+            displayName: userDraft.displayName,
+            password: userDraft.password || undefined,
+            companyRoleId,
+            legacyRole: userDraft.legacyRole,
+            isUserActive: userDraft.isUserActive,
+            isAssignmentActive: userDraft.isAssignmentActive,
+          });
+      } else {
+        await callCenterApi.createCompanyUser(selectedCompanyId, {
+            email: userDraft.email,
+            displayName: userDraft.displayName,
+            password: userDraft.password || undefined,
+            companyRoleId,
+            legacyRole: userDraft.legacyRole,
+            isActive: userDraft.isUserActive && userDraft.isAssignmentActive,
+          });
+      }
+      setGridRefreshVersion((version) => version + 1);
+      resetUserDraft();
+      setIsUserFormOpen(false);
+      setStatus('Kullanıcı kaydedildi');
+    } catch {
+      setStatus('Kullanıcı kaydedilemedi');
+    } finally {
+      setIsFormSaving(false);
     }
-    setGridRefreshVersion((version) => version + 1);
-    resetUserDraft();
-    setIsUserFormOpen(false);
-    setStatus('Kullanıcı kaydedildi');
   }
 
   async function simulate() {
@@ -1686,7 +1722,7 @@ function App() {
                 </div>
                 <Field label="Mesaj override"><textarea value={exceptionDraft.messageOverride} onChange={(event) => setExceptionDraft({ ...exceptionDraft, messageOverride: event.target.value })} placeholder="Arayana okunacak özel mesaj" /></Field>
               </div>
-              <footer className="form-drawer-footer"><button className="secondary-action" type="button" onClick={() => setIsExceptionFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={!exceptionDraft.title.trim()} type="button" onClick={createException}><Save size={16} /> Özel günü kaydet</button></footer>
+              <footer className="form-drawer-footer"><button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsExceptionFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={isFormSaving || !exceptionDraft.title.trim()} type="button" onClick={createException}>{isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} Özel günü kaydet</button></footer>
             </aside>
           </div>
         )}
@@ -1704,7 +1740,7 @@ function App() {
                 <Field label="Dil kodu"><input value={departmentDraft.languageCode} onChange={(event) => setDepartmentDraft({ ...departmentDraft, languageCode: event.target.value })} placeholder="tr-TR" /></Field>
                 <label className="check"><input checked={departmentDraft.isActive} type="checkbox" onChange={(event) => setDepartmentDraft({ ...departmentDraft, isActive: event.target.checked })} /> Departman aktif</label>
               </div>
-              <footer className="form-drawer-footer"><button className="secondary-action" type="button" onClick={() => setIsDepartmentFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={!departmentDraft.code.trim() || !departmentDraft.name.trim()} type="button" onClick={createDepartment}><Save size={16} /> Departmanı kaydet</button></footer>
+              <footer className="form-drawer-footer"><button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsDepartmentFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={isFormSaving || !departmentDraft.code.trim() || !departmentDraft.name.trim()} type="button" onClick={createDepartment}>{isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} Departmanı kaydet</button></footer>
             </aside>
           </div>
         )}
@@ -1728,7 +1764,7 @@ function App() {
                 <Field label="Okunacak mesaj"><textarea value={ruleDraft.message} onChange={(event) => setRuleDraft({ ...ruleDraft, message: event.target.value })} placeholder="Aksiyon mesaj okuyacaksa metni girin" /></Field>
                 <div className="check-stack"><label className="check"><input checked={ruleDraft.isActive} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, isActive: event.target.checked })} /> Kural aktif</label><label className="check"><input checked={ruleDraft.appliesDuringBusinessHours} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, appliesDuringBusinessHours: event.target.checked })} /> Mesai saatlerinde uygula</label><label className="check"><input checked={ruleDraft.appliesAfterHours} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, appliesAfterHours: event.target.checked })} /> Mesai dışında uygula</label></div>
               </div>
-              <footer className="form-drawer-footer"><button className="secondary-action" type="button" onClick={() => setIsRuleFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={!ruleDraft.name.trim()} type="button" onClick={createRule}><Save size={16} /> Kuralı kaydet</button></footer>
+              <footer className="form-drawer-footer"><button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsRuleFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={isFormSaving || !ruleDraft.name.trim()} type="button" onClick={createRule}>{isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} Kuralı kaydet</button></footer>
             </aside>
           </div>
         )}
@@ -1779,9 +1815,9 @@ function App() {
                 </div>
               </div>
               <footer className="form-drawer-footer">
-                <button className="secondary-action" type="button" onClick={() => setIsUserFormOpen(false)}>Vazgeç</button>
-                <button className="save-button" type="button" onClick={saveCompanyUser}>
-                  <Save size={16} /> {editingUserAssignmentId ? 'Güncelle' : 'Kullanıcıyı ekle'}
+                <button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsUserFormOpen(false)}>Vazgeç</button>
+                <button className="save-button" disabled={isFormSaving || !userDraft.email.trim() || !userDraft.displayName.trim()} type="button" onClick={saveCompanyUser}>
+                  {isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} {editingUserAssignmentId ? 'Güncelle' : 'Kullanıcıyı ekle'}
                 </button>
               </footer>
             </aside>
@@ -1821,8 +1857,8 @@ function App() {
                 </div>
               </div>
               <footer className="form-drawer-footer">
-                <button className="secondary-action" type="button" onClick={() => setIsRoleFormOpen(false)}>Vazgeç</button>
-                <button className="save-button" type="button" onClick={saveRole}><Save size={16} /> {editingRoleId ? 'Rolü güncelle' : 'Rolü oluştur'}</button>
+                <button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsRoleFormOpen(false)}>Vazgeç</button>
+                <button className="save-button" disabled={isFormSaving || !roleDraft.code.trim() || !roleDraft.name.trim()} type="button" onClick={saveRole}>{isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} {editingRoleId ? 'Rolü güncelle' : 'Rolü oluştur'}</button>
               </footer>
             </aside>
           </div>
