@@ -468,6 +468,7 @@ function App() {
     [companies, selectedCompanyId],
   );
   const loginText = loginTranslations[loginLanguage];
+  const isLoginRtl = loginLanguage === 'ar';
   const companyOptions = useMemo<SelectOption[]>(
     () => [
       { value: '', label: loginText.companyPlaceholder, helper: 'SUPER ADMIN' },
@@ -712,7 +713,14 @@ function App() {
 
   if (!authContext) {
     return (
-      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050914] px-4 py-8 text-slate-200">
+      <main
+        className={
+          isLoginRtl
+            ? 'login-rtl relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050914] px-4 py-8 text-slate-200'
+            : 'relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050914] px-4 py-8 text-slate-200'
+        }
+        dir={isLoginRtl ? 'rtl' : 'ltr'}
+      >
         <SpaceBackground />
         <div className="pointer-events-none fixed left-10 top-10 z-0 hidden h-36 w-36 rounded-full border border-cyan-300/20 shadow-[0_0_80px_rgba(34,211,238,0.16)] md:block" />
         <div className="pointer-events-none fixed bottom-12 right-12 z-0 h-52 w-52 rounded-full border border-fuchsia-400/10 bg-cyan-500/5 blur-sm" />
@@ -808,7 +816,7 @@ function App() {
                 />
                 <button
                   aria-label={isPasswordVisible ? 'Şifreyi gizle' : 'Şifreyi göster'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition-colors hover:text-slate-200"
+                  className="login-password-toggle absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition-colors hover:text-slate-200"
                   type="button"
                   onClick={() => setIsPasswordVisible((value) => !value)}
                 >
@@ -1159,7 +1167,7 @@ function LoginField({ icon, label, children }: { icon: React.ReactNode; label: s
     <label className="block">
       <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-slate-400">{label}</span>
       <div className="relative flex items-center rounded-lg border border-slate-700 bg-[#131b2f] transition-all focus-within:border-cyan-300 focus-within:shadow-[0_0_15px_rgba(0,195,255,0.4),inset_0_0_5px_rgba(0,195,255,0.18)]">
-        <div className="absolute left-3 text-slate-500">{icon}</div>
+        <div className="login-field-icon absolute left-3 text-slate-500">{icon}</div>
         {children}
       </div>
     </label>
@@ -1211,8 +1219,8 @@ function CustomSelect({
         onClick={() => setIsOpen((current) => !current)}
       >
         {icon && <span className="select-trigger-leading">{icon}</span>}
-        <span className="min-w-0 flex-1 truncate text-left">
-          {label && compact ? <span className="mr-2 text-slate-500">{label}</span> : null}
+        <span className="select-trigger-value min-w-0 flex-1 truncate text-left">
+          {label && compact ? <span className="select-trigger-label text-slate-500">{label}</span> : null}
           {isLoading ? loadingText : selectedOption?.label}
         </span>
         <ChevronDown className={isOpen ? 'rotate-180 transition-transform' : 'transition-transform'} size={16} />

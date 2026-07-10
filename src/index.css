@@ -135,6 +135,10 @@ textarea {
   color: #93c5fd;
 }
 
+.select-trigger-label {
+  margin-right: 8px;
+}
+
 .select-content {
   position: absolute;
   z-index: 50;
@@ -189,4 +193,42 @@ textarea {
   padding: 12px;
   color: #94a3b8;
   font-size: 13px;
+}
+
+.login-rtl .login-field-icon {
+  left: auto;
+  right: 12px;
+}
+
+.login-rtl .login-control,
+.login-rtl .select-trigger:not(.select-trigger-compact) {
+  padding-left: 16px;
+  padding-right: 48px;
+  text-align: right;
+}
+
+.login-rtl .login-control-password {
+  padding-left: 48px;
+}
+
+.login-rtl .login-password-toggle {
+  left: 12px;
+  right: auto;
+}
+
+.login-rtl .select-trigger-value {
+  text-align: right;
+}
+
+.login-rtl .select-trigger-label {
+  margin-left: 8px;
+  margin-right: 0;
+}
+
+.login-rtl .select-content {
+  direction: rtl;
+}
+
+.login-rtl .select-item {
+  text-align: right;
 }
