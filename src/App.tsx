@@ -2,10 +2,13 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Building2,
   CalendarDays,
+  Check,
+  ChevronDown,
   Clock3,
   Eye,
   EyeOff,
   GitBranch,
+  Globe2,
   Headphones,
   History,
   Lock,
@@ -62,6 +65,7 @@ const loginLanguages = [
 ] as const;
 
 type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
+type SelectOption = { value: string; label: string; helper?: string };
 
 const loginTranslations: Record<LoginLanguageCode, {
   brandSuffix: string;
@@ -408,6 +412,7 @@ function App() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [authContext, setAuthContext] = useState<AuthContext | null>(null);
   const [loginCompanies, setLoginCompanies] = useState<AuthCompany[]>([]);
+  const [isLoginCompaniesLoading, setIsLoginCompaniesLoading] = useState(false);
   const [loginDraft, setLoginDraft] = useState({
     email: 'admin@v3rii.com',
     password: '',
@@ -463,6 +468,24 @@ function App() {
     [companies, selectedCompanyId],
   );
   const loginText = loginTranslations[loginLanguage];
+  const companyOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: '', label: loginText.companyPlaceholder, helper: 'SUPER ADMIN' },
+      ...loginCompanies.map((company) => ({
+        value: company.id.toString(),
+        label: company.name,
+        helper: company.code,
+      })),
+    ],
+    [loginCompanies, loginText.companyPlaceholder],
+  );
+  const languageOptions = useMemo<SelectOption[]>(
+    () => loginLanguages.map((language) => ({
+      value: language.code,
+      label: `${language.shortLabel} - ${language.label}`,
+    })),
+    [],
+  );
 
   useEffect(() => {
     const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
@@ -511,11 +534,14 @@ function App() {
 
   async function loadLoginCompanies() {
     try {
+      setIsLoginCompaniesLoading(true);
       const data = await callCenterApi.loginCompanies();
       setLoginCompanies(data);
     } catch {
       setLoginCompanies([]);
       setStatus(loginText.companyLoadFailed);
+    } finally {
+      setIsLoginCompaniesLoading(false);
     }
   }
 
@@ -690,20 +716,16 @@ function App() {
         <SpaceBackground />
         <div className="pointer-events-none fixed left-10 top-10 z-0 hidden h-36 w-36 rounded-full border border-cyan-300/20 shadow-[0_0_80px_rgba(34,211,238,0.16)] md:block" />
         <div className="pointer-events-none fixed bottom-12 right-12 z-0 h-52 w-52 rounded-full border border-fuchsia-400/10 bg-cyan-500/5 blur-sm" />
-        <label className="fixed right-6 top-6 z-20 flex items-center gap-2 rounded-full border border-blue-400/20 bg-[#0b1120]/80 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-300 shadow-[0_0_18px_rgba(0,195,255,0.12)] backdrop-blur-xl">
-          <span>{loginText.language}</span>
-          <select
-            className="login-language-select"
+        <div className="fixed right-6 top-6 z-20 w-56">
+          <CustomSelect
+            compact
+            icon={<Globe2 size={15} />}
+            label={loginText.language}
+            onChange={(value) => setLoginLanguage(value as LoginLanguageCode)}
+            options={languageOptions}
             value={loginLanguage}
-            onChange={(event) => setLoginLanguage(event.target.value as LoginLanguageCode)}
-          >
-            {loginLanguages.map((language) => (
-              <option key={language.code} value={language.code}>
-                {language.shortLabel} - {language.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          />
+        </div>
 
         <section className="relative z-10 grid w-full max-w-4xl overflow-hidden rounded-2xl border border-blue-400/20 bg-[#0d1124]/70 shadow-[0_0_30px_rgba(0,195,255,0.12)] backdrop-blur-xl md:grid-cols-2">
           <div className="relative hidden overflow-hidden border-r border-blue-400/20 bg-gradient-to-br from-blue-950/45 to-fuchsia-950/35 p-10 md:flex md:min-h-[620px] md:flex-col md:justify-between">
@@ -758,18 +780,13 @@ function App() {
 
             <form className="space-y-5" onSubmit={(event) => void login(event)}>
               <LoginField icon={<Building2 size={17} />} label={loginText.company}>
-                <select
-                  className="login-control"
+                <CustomSelect
+                  isLoading={isLoginCompaniesLoading}
+                  loadingText="Yükleniyor"
+                  onChange={(value) => setLoginDraft({ ...loginDraft, companyId: value })}
+                  options={companyOptions}
                   value={loginDraft.companyId}
-                  onChange={(event) => setLoginDraft({ ...loginDraft, companyId: event.target.value })}
-                >
-                  <option value="">{loginText.companyPlaceholder}</option>
-                  {loginCompanies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </LoginField>
 
               <LoginField icon={<UserRound size={17} />} label={loginText.operator}>
@@ -1146,6 +1163,87 @@ function LoginField({ icon, label, children }: { icon: React.ReactNode; label: s
         {children}
       </div>
     </label>
+  );
+}
+
+function CustomSelect({
+  compact = false,
+  icon,
+  isLoading = false,
+  label,
+  loadingText = 'Yükleniyor',
+  onChange,
+  options,
+  value,
+}: {
+  compact?: boolean;
+  icon?: React.ReactNode;
+  isLoading?: boolean;
+  label?: string;
+  loadingText?: string;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  value: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedOption = options.find((option) => option.value === value);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [isOpen]);
+
+  return (
+    <div className="relative w-full" ref={rootRef}>
+      <button
+        aria-expanded={isOpen}
+        className={compact ? 'select-trigger select-trigger-compact' : 'select-trigger'}
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        {icon && <span className="select-trigger-leading">{icon}</span>}
+        <span className="min-w-0 flex-1 truncate text-left">
+          {label && compact ? <span className="mr-2 text-slate-500">{label}</span> : null}
+          {isLoading ? loadingText : selectedOption?.label}
+        </span>
+        <ChevronDown className={isOpen ? 'rotate-180 transition-transform' : 'transition-transform'} size={16} />
+      </button>
+
+      {isOpen && (
+        <div className={compact ? 'select-content select-content-compact' : 'select-content'}>
+          {isLoading ? (
+            <div className="select-empty">{loadingText}</div>
+          ) : (
+            options.map((option) => (
+              <button
+                className={option.value === value ? 'select-item select-item-active' : 'select-item'}
+                key={option.value || '__empty'}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{option.label}</span>
+                  {option.helper && <span className="mt-0.5 block truncate text-[11px] text-slate-500">{option.helper}</span>}
+                </span>
+                {option.value === value && <Check size={15} />}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
