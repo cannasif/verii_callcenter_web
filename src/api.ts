@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_CALLCENTER_API_URL ?? 'http://localhost:5179',
+  baseURL: import.meta.env.VITE_CALLCENTER_API_URL ?? 'https://callcenterapi.v3rii.com',
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -133,6 +133,7 @@ export interface ConversationLog {
 }
 
 export const callCenterApi = {
+  loginCompanies: () => api.get<AuthCompany[]>('/api/auth/companies').then((x) => x.data),
   login: (payload: { email: string; password: string; companyId?: number | null }) =>
     api.post<LoginResponse>('/api/auth/login', payload).then((x) => x.data),
   authContext: (selectedCompanyId?: number | null) =>

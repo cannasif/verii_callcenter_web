@@ -123,6 +123,8 @@ function App() {
     const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
     if (token) {
       void bootstrap();
+    } else {
+      void loadLoginCompanies();
     }
   }, []);
 
@@ -162,7 +164,22 @@ function App() {
     await refreshCompanies(context);
   }
 
+  async function loadLoginCompanies() {
+    try {
+      const data = await callCenterApi.loginCompanies();
+      setLoginCompanies(data);
+    } catch {
+      setLoginCompanies([]);
+      setStatus('Firma listesi yüklenemedi');
+    }
+  }
+
   async function login() {
+    if (!loginDraft.email.trim() || !loginDraft.password.trim()) {
+      setStatus('E-posta ve şifre zorunlu');
+      return;
+    }
+
     let response;
     try {
       setStatus('Giriş kontrol ediliyor');
@@ -178,6 +195,7 @@ function App() {
 
     if (response.requiresCompanySelection) {
       setLoginCompanies(response.companies);
+      setLoginDraft((draft) => ({ ...draft, companyId: draft.companyId || response.companies[0]?.id.toString() || '' }));
       setStatus(response.message ?? 'Firma seçimi gerekli');
       return;
     }
@@ -337,16 +355,14 @@ function App() {
             <Field label="Şifre">
               <input type="password" value={loginDraft.password} onChange={(event) => setLoginDraft({ ...loginDraft, password: event.target.value })} />
             </Field>
-            {loginCompanies.length > 0 && (
-              <Field label="Firma">
-                <select value={loginDraft.companyId} onChange={(event) => setLoginDraft({ ...loginDraft, companyId: event.target.value })}>
-                  <option value="">Firma seçin</option>
-                  {loginCompanies.map((company) => (
-                    <option key={company.id} value={company.id}>{company.name}</option>
-                  ))}
-                </select>
-              </Field>
-            )}
+            <Field label="Firma">
+              <select value={loginDraft.companyId} onChange={(event) => setLoginDraft({ ...loginDraft, companyId: event.target.value })}>
+                <option value="">Super admin / firma seçmeden giriş</option>
+                {loginCompanies.map((company) => (
+                  <option key={company.id} value={company.id}>{company.name}</option>
+                ))}
+              </select>
+            </Field>
             <button className="save-button" type="button" onClick={login}>
               <KeyRound size={16} /> Giriş yap
             </button>
