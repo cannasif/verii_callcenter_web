@@ -84,6 +84,7 @@ const loginTranslations: Record<LoginLanguageCode, {
   operator: string;
   operatorPlaceholder: string;
   password: string;
+  forgotCode: string;
   remember: string;
   submit: string;
   securityNetwork: string;
@@ -113,6 +114,7 @@ const loginTranslations: Record<LoginLanguageCode, {
     operator: 'Operatör ID / E-posta',
     operatorPlaceholder: 'admin@v3rii.com',
     password: 'Erişim Kodu',
+    forgotCode: 'Kodu unuttum',
     remember: 'Terminali hatırla',
     submit: 'Sisteme Bağlan',
     securityNetwork: 'V3RII Güvenlik Ağı © 2026',
@@ -142,6 +144,7 @@ const loginTranslations: Record<LoginLanguageCode, {
     operator: 'Operator ID / Email',
     operatorPlaceholder: 'admin@v3rii.com',
     password: 'Access Code',
+    forgotCode: 'Forgot code',
     remember: 'Remember terminal',
     submit: 'Connect System',
     securityNetwork: 'V3RII Security Network © 2026',
@@ -171,6 +174,7 @@ const loginTranslations: Record<LoginLanguageCode, {
     operator: 'Operator-ID / E-Mail',
     operatorPlaceholder: 'admin@v3rii.com',
     password: 'Zugangscode',
+    forgotCode: 'Code vergessen',
     remember: 'Terminal merken',
     submit: 'Verbinden',
     securityNetwork: 'V3RII Sicherheitsnetz © 2026',
@@ -200,6 +204,7 @@ const loginTranslations: Record<LoginLanguageCode, {
     operator: 'ID opérateur / E-mail',
     operatorPlaceholder: 'admin@v3rii.com',
     password: 'Code d’accès',
+    forgotCode: 'Code oublié',
     remember: 'Mémoriser le terminal',
     submit: 'Se connecter',
     securityNetwork: 'Réseau de sécurité V3RII © 2026',
@@ -229,6 +234,7 @@ const loginTranslations: Record<LoginLanguageCode, {
     operator: 'ID operador / Email',
     operatorPlaceholder: 'admin@v3rii.com',
     password: 'Código de acceso',
+    forgotCode: 'Olvidé el código',
     remember: 'Recordar terminal',
     submit: 'Conectar',
     securityNetwork: 'Red de Seguridad V3RII © 2026',
@@ -258,6 +264,7 @@ const loginTranslations: Record<LoginLanguageCode, {
     operator: 'ID operatore / Email',
     operatorPlaceholder: 'admin@v3rii.com',
     password: 'Codice accesso',
+    forgotCode: 'Codice dimenticato',
     remember: 'Ricorda terminale',
     submit: 'Connetti',
     securityNetwork: 'Rete Sicurezza V3RII © 2026',
@@ -287,6 +294,7 @@ const loginTranslations: Record<LoginLanguageCode, {
     operator: 'معرف المشغل / البريد',
     operatorPlaceholder: 'admin@v3rii.com',
     password: 'رمز الدخول',
+    forgotCode: 'نسيت الرمز',
     remember: 'تذكر الجهاز',
     submit: 'الاتصال بالنظام',
     securityNetwork: 'شبكة أمان V3RII © 2026',
@@ -316,6 +324,7 @@ const loginTranslations: Record<LoginLanguageCode, {
     operator: 'ID оператора / Email',
     operatorPlaceholder: 'admin@v3rii.com',
     password: 'Код доступа',
+    forgotCode: 'Забыли код',
     remember: 'Запомнить терминал',
     submit: 'Подключиться',
     securityNetwork: 'Сеть безопасности V3RII © 2026',
@@ -345,6 +354,7 @@ const loginTranslations: Record<LoginLanguageCode, {
     operator: 'ID operador / Email',
     operatorPlaceholder: 'admin@v3rii.com',
     password: 'Código de acesso',
+    forgotCode: 'Esqueci o código',
     remember: 'Lembrar terminal',
     submit: 'Conectar',
     securityNetwork: 'Rede de Segurança V3RII © 2026',
@@ -374,6 +384,7 @@ const loginTranslations: Record<LoginLanguageCode, {
     operator: 'Operator ID / E-mail',
     operatorPlaceholder: 'admin@v3rii.com',
     password: 'Toegangscode',
+    forgotCode: 'Code vergeten',
     remember: 'Terminal onthouden',
     submit: 'Verbinden',
     securityNetwork: 'V3RII Beveiligingsnetwerk © 2026',
@@ -722,71 +733,73 @@ function App() {
         dir={isLoginRtl ? 'rtl' : 'ltr'}
       >
         <SpaceBackground />
-        <div className="pointer-events-none fixed left-10 top-10 z-0 hidden h-36 w-36 rounded-full border border-cyan-300/20 shadow-[0_0_80px_rgba(34,211,238,0.16)] md:block" />
-        <div className="pointer-events-none fixed bottom-12 right-12 z-0 h-52 w-52 rounded-full border border-fuchsia-400/10 bg-cyan-500/5 blur-sm" />
-        <div className="fixed right-6 top-6 z-20 w-56">
-          <CustomSelect
-            compact
-            icon={<Globe2 size={15} />}
-            label={loginText.language}
-            onChange={(value) => setLoginLanguage(value as LoginLanguageCode)}
-            options={languageOptions}
-            value={loginLanguage}
-          />
-        </div>
+        <WanderingRocket />
 
-        <section className="relative z-10 grid w-full max-w-4xl overflow-hidden rounded-2xl border border-blue-400/20 bg-[#0d1124]/70 shadow-[0_0_30px_rgba(0,195,255,0.12)] backdrop-blur-xl md:grid-cols-2">
-          <div className="relative hidden overflow-hidden border-r border-blue-400/20 bg-gradient-to-br from-blue-950/45 to-fuchsia-950/35 p-10 md:flex md:min-h-[620px] md:flex-col md:justify-between">
-            <div className="absolute -bottom-24 -left-24 opacity-25">
+        <section className="glass-panel relative z-10 grid w-full max-w-4xl overflow-hidden rounded-2xl md:grid-cols-2">
+          <div className="relative hidden overflow-hidden border-r border-blue-500/20 bg-gradient-to-br from-blue-900/40 to-purple-900/40 p-10 md:flex md:min-h-[620px] md:flex-col md:justify-between">
+            <div className="pointer-events-none absolute -bottom-20 -left-20 opacity-20">
               <PlanetMark />
             </div>
 
             <div className="relative z-10">
               <div className="mb-8 flex items-center gap-3">
-                <Rocket className="animate-[float_4s_ease-in-out_infinite] text-blue-300 drop-shadow-[0_0_12px_rgba(96,165,250,0.75)]" size={34} />
-                <h2 className="font-mono text-2xl font-bold tracking-[0.24em] text-white">
+                <Rocket className="shuttle-anim text-blue-400 drop-shadow-[0_0_12px_rgba(96,165,250,0.75)]" size={34} />
+                <h2 className="brand-font text-2xl font-bold tracking-widest text-white">
                   V3RII<span className="text-blue-300">{loginText.brandSuffix}</span>
                 </h2>
               </div>
-              <h1 className="text-4xl font-bold leading-tight tracking-wide text-white">
+              <h1 className="brand-font text-4xl font-bold leading-tight text-white">
                 {loginText.heroLine1}
                 <br />
                 {loginText.heroLine2}
                 <br />
-                <span className="bg-gradient-to-r from-blue-300 to-fuchsia-400 bg-clip-text text-transparent">{loginText.heroLine3}</span>
+                <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">{loginText.heroLine3}</span>
               </h1>
-              <p className="mt-5 max-w-xs text-sm leading-6 text-slate-400">
+              <p className="mt-5 max-w-xs text-sm leading-6 text-gray-400">
                 {loginText.heroText}
               </p>
             </div>
 
             <div className="relative z-10 space-y-3 font-mono text-xs">
-              <div className="flex items-center justify-between rounded border border-slate-600/50 bg-black/30 p-2">
-                <span className="text-slate-400">{loginText.serverStatus}</span>
-                <span className="flex items-center text-emerald-300">
-                  <span className="mr-2 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+              <div className="flex items-center justify-between rounded border border-gray-700/50 bg-black/30 p-2">
+                <span className="text-gray-400">{loginText.serverStatus}</span>
+                <span className="flex items-center text-green-400">
+                  <span className="mr-2 h-2 w-2 animate-pulse rounded-full bg-green-500 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
                   {loginText.online}
                 </span>
               </div>
-              <div className="flex items-center justify-between rounded border border-slate-600/50 bg-black/30 p-2">
-                <span className="text-slate-400">{loginText.securityProtocol}</span>
-                <span className="text-blue-300">{loginText.active}</span>
+              <div className="flex items-center justify-between rounded border border-gray-700/50 bg-black/30 p-2">
+                <span className="text-gray-400">{loginText.securityProtocol}</span>
+                <span className="text-blue-400">{loginText.active} (V4.2)</span>
               </div>
             </div>
           </div>
 
-          <div className="flex min-h-[620px] flex-col justify-center bg-[#0b1120]/85 p-8 md:p-12">
+          <div className="flex min-h-[620px] flex-col justify-center bg-[#0b1120]/80 p-8 md:p-12">
+            <div className="mb-6 flex justify-end">
+              <div className="w-full max-w-72">
+                <CustomSelect
+                  compact
+                  icon={<Globe2 size={15} />}
+                  label={loginText.language}
+                  onChange={(value) => setLoginLanguage(value as LoginLanguageCode)}
+                  options={languageOptions}
+                  value={loginLanguage}
+                />
+              </div>
+            </div>
+
             <div className="mb-8 flex items-center justify-center gap-2 md:hidden">
-              <Rocket className="animate-[float_4s_ease-in-out_infinite] text-blue-300" size={26} />
-              <h2 className="font-mono text-xl font-bold tracking-[0.22em] text-white">
+              <Rocket className="shuttle-anim text-blue-400" size={26} />
+              <h2 className="brand-font text-xl font-bold tracking-widest text-white">
                 V3RII<span className="text-blue-300">{loginText.brandSuffix}</span>
               </h2>
             </div>
 
-            <h3 className="font-mono text-2xl font-semibold text-white drop-shadow-[0_0_12px_rgba(0,195,255,0.35)]">{loginText.title}</h3>
-            <p className="mb-8 mt-2 text-sm text-slate-400">{loginText.subtitle}</p>
+            <h3 className="brand-font neon-text text-2xl font-semibold text-white">{loginText.title}</h3>
+            <p className="mb-8 mt-2 text-sm text-gray-400">{loginText.subtitle}</p>
 
-            <form className="space-y-5" onSubmit={(event) => void login(event)}>
+            <form className="space-y-6" onSubmit={(event) => void login(event)}>
               <LoginField icon={<Building2 size={17} />} label={loginText.company}>
                 <CustomSelect
                   isLoading={isLoginCompaniesLoading}
@@ -806,7 +819,15 @@ function App() {
                 />
               </LoginField>
 
-              <LoginField icon={<Lock size={17} />} label={loginText.password}>
+              <LoginField
+                action={
+                  <button className="text-xs text-blue-400 transition-colors hover:text-blue-300" type="button">
+                    {loginText.forgotCode}
+                  </button>
+                }
+                icon={<Lock size={17} />}
+                label={loginText.password}
+              >
                 <input
                   className="login-control login-control-password"
                   placeholder="••••••••"
@@ -824,13 +845,13 @@ function App() {
                 </button>
               </LoginField>
 
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-400">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-400">
                 <input className="login-checkbox" type="checkbox" />
                 <span className="select-none">{loginText.remember}</span>
               </label>
 
               <button
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[linear-gradient(90deg,#1e3c72_0%,#2a5298_55%,#00c3ff_120%)] bg-[length:200%_auto] py-3 font-mono text-sm font-bold uppercase tracking-wider text-white transition-all duration-500 hover:bg-right hover:shadow-[0_0_22px_rgba(0,195,255,0.58)]"
+                className="login-btn brand-font mt-4 flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold uppercase tracking-wider text-white"
                 type="submit"
               >
                 <span>{loginText.submit}</span>
@@ -1162,11 +1183,24 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function LoginField({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
+function LoginField({
+  action,
+  icon,
+  label,
+  children,
+}: {
+  action?: React.ReactNode;
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-slate-400">{label}</span>
-      <div className="relative flex items-center rounded-lg border border-slate-700 bg-[#131b2f] transition-all focus-within:border-cyan-300 focus-within:shadow-[0_0_15px_rgba(0,195,255,0.4),inset_0_0_5px_rgba(0,195,255,0.18)]">
+      <span className={action ? 'mb-1 flex items-center justify-between gap-3' : 'mb-1 block'}>
+        <span className="block text-xs font-medium uppercase tracking-wider text-slate-400">{label}</span>
+        {action}
+      </span>
+      <div className="neon-border relative flex items-center rounded-lg border border-gray-700 bg-[#131b2f] transition-colors">
         <div className="login-field-icon absolute left-3 text-slate-500">{icon}</div>
         {children}
       </div>
@@ -1251,6 +1285,106 @@ function CustomSelect({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function WanderingRocket() {
+  const rocketRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const rocket = rocketRef.current;
+    if (!rocket) return;
+
+    let animationFrame = 0;
+    let x = -120;
+    let y = window.innerHeight * 0.72;
+    let targetX = window.innerWidth + 140;
+    let targetY = window.innerHeight * 0.18;
+    let progress = 0;
+
+    const resetPath = () => {
+      x = -140;
+      y = window.innerHeight * (0.45 + Math.random() * 0.38);
+      targetX = window.innerWidth + 140;
+      targetY = window.innerHeight * (0.08 + Math.random() * 0.35);
+      progress = 0;
+    };
+
+    const animate = () => {
+      progress += 0.0018;
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const currentX = x + (targetX - x) * eased;
+      const arc = Math.sin(progress * Math.PI) * 130;
+      const currentY = y + (targetY - y) * eased - arc;
+      const angle = Math.atan2(targetY - y, targetX - x) * (180 / Math.PI) + 90;
+
+      rocket.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${angle}deg)`;
+
+      if (progress >= 1) {
+        resetPath();
+      }
+
+      animationFrame = window.requestAnimationFrame(animate);
+    };
+
+    resetPath();
+    animate();
+
+    const handleResize = () => resetPath();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  return (
+    <div
+      className="wandering-rocket pointer-events-none fixed left-0 top-0 z-0 h-[200px] w-[100px]"
+      ref={rocketRef}
+      style={{ transform: 'translate(-999px, -999px)' }}
+    >
+      <svg viewBox="0 0 100 200" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="rocketBodyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#cbd5e1" />
+            <stop offset="50%" stopColor="#ffffff" />
+            <stop offset="100%" stopColor="#94a3b8" />
+          </linearGradient>
+          <linearGradient id="rocketGlassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#38bdf8" />
+            <stop offset="100%" stopColor="#0284c7" />
+          </linearGradient>
+          <linearGradient id="rocketFinGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#dc2626" />
+            <stop offset="100%" stopColor="#991b1b" />
+          </linearGradient>
+          <filter id="rocketFlameGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        <g className="wandering-flame">
+          <path d="M35 135 Q50 220 65 135 Z" fill="#ea580c" filter="url(#rocketFlameGlow)" />
+          <path d="M40 135 Q50 185 60 135 Z" fill="#facc15" />
+          <path d="M45 135 Q50 155 55 135 Z" fill="#ffffff" />
+        </g>
+
+        <path d="M35 120 L65 120 L60 135 L40 135 Z" fill="#334155" />
+        <path d="M20 100 Q5 140 0 150 L20 130 Z" fill="url(#rocketFinGrad)" />
+        <path d="M80 100 Q95 140 100 150 L80 130 Z" fill="url(#rocketFinGrad)" />
+        <path d="M50 10 Q20 40 20 120 L80 120 Q80 40 50 10 Z" fill="url(#rocketBodyGrad)" />
+        <path d="M48 100 L52 100 L52 140 L48 140 Z" fill="#7f1d1d" />
+        <path d="M50 10 Q32 30 25.5 50 L74.5 50 Q68 30 50 10 Z" fill="url(#rocketFinGrad)" />
+        <circle cx="50" cy="65" r="14" fill="#1e293b" />
+        <circle cx="50" cy="65" r="11" fill="url(#rocketGlassGrad)" />
+        <path d="M43 58 A 9 9 0 0 1 55 59 A 11 11 0 0 0 43 68 Z" fill="#ffffff" opacity="0.4" />
+        <path d="M22 100 L78 100" stroke="#94a3b8" strokeWidth="1" opacity="0.5" />
+        <path d="M20 110 L80 110" stroke="#94a3b8" strokeWidth="1" opacity="0.5" />
+      </svg>
     </div>
   );
 }

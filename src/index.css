@@ -1,9 +1,10 @@
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Rajdhani:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 :root {
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+    Rajdhani, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
   color: #172033;
   background: #f4f6f8;
   font-synthesis: none;
@@ -16,6 +17,31 @@ body {
   margin: 0;
 }
 
+.brand-font {
+  font-family: Orbitron, ui-sans-serif, system-ui, sans-serif;
+}
+
+.glass-panel {
+  background: rgba(13, 17, 36, 0.7);
+  border: 1px solid rgba(64, 114, 255, 0.2);
+  box-shadow: 0 0 30px rgba(0, 195, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.neon-text {
+  text-shadow: 0 0 5px rgba(0, 195, 255, 0.5), 0 0 10px rgba(0, 195, 255, 0.5);
+}
+
+.neon-border:focus-within {
+  border-color: #00c3ff;
+  box-shadow: 0 0 15px rgba(0, 195, 255, 0.4), inset 0 0 5px rgba(0, 195, 255, 0.2);
+}
+
+.shuttle-anim {
+  animation: float 4s ease-in-out infinite;
+}
+
 @keyframes float {
   0% {
     transform: translateY(0) rotate(0deg);
@@ -26,6 +52,27 @@ body {
   100% {
     transform: translateY(0) rotate(0deg);
   }
+}
+
+@keyframes flame-flicker {
+  0% {
+    opacity: 0.8;
+    transform: scaleY(0.9) scaleX(1);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleY(1.2) scaleX(0.9);
+  }
+}
+
+.wandering-rocket {
+  filter: drop-shadow(0 0 20px rgba(0, 195, 255, 0.4));
+  will-change: transform;
+}
+
+.wandering-flame {
+  animation: flame-flicker 0.1s infinite alternate;
+  transform-origin: 50% 135px;
 }
 
 input:-webkit-autofill,
@@ -79,15 +126,26 @@ textarea {
 }
 
 .login-checkbox {
-  width: 18px;
-  min-width: 18px;
-  height: 18px;
-  min-height: 18px;
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  min-height: 16px;
   padding: 0;
   border: 1px solid #475569;
-  border-radius: 5px;
+  border-radius: 4px;
   background: #131b2f;
   accent-color: #3b82f6;
+}
+
+.login-btn {
+  background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%, #00c3ff 200%);
+  background-size: 200% auto;
+  transition: 0.5s;
+}
+
+.login-btn:hover {
+  background-position: right center;
+  box-shadow: 0 0 20px rgba(0, 195, 255, 0.6);
 }
 
 .login-language-select {
