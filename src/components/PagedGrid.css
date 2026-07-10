@@ -1,9 +1,11 @@
 .paged-grid {
+  position: relative;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #dbe3ea;
+  border: 1px solid #dbe5ee;
   border-radius: 8px;
   background: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .paged-grid-toolbar,
@@ -17,7 +19,7 @@
 
 .paged-grid-toolbar {
   border-bottom: 1px solid #e2e8f0;
-  background: #f8fafc;
+  background: #fbfcfe;
 }
 
 .paged-grid-search {
@@ -56,6 +58,9 @@
 }
 
 .paged-grid-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 8px;
   border-radius: 999px;
   color: #475569;
@@ -92,6 +97,7 @@
 }
 
 .paged-grid-table-shell {
+  position: relative;
   width: 100%;
   overflow-x: auto;
 }
@@ -142,7 +148,7 @@
 }
 
 .paged-grid tbody tr:not(.skeleton-row):hover {
-  background: #f8fafc;
+  background: #f3f8f8;
 }
 
 .paged-grid tbody tr.clickable {
@@ -175,7 +181,7 @@
 }
 
 .paged-grid-message {
-  height: 100px !important;
+  height: 184px !important;
   color: #64748b;
   text-align: center;
 }
@@ -192,6 +198,60 @@
   background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
   background-size: 200% 100%;
   animation: grid-skeleton 1.2s infinite;
+}
+
+.paged-grid-refresh-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #0f766e;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(1px);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.paged-grid-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.paged-grid-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 2px;
+  border: 1px solid #ccebe6;
+  border-radius: 50%;
+  color: #0f766e;
+  background: #f0fdfa;
+}
+
+.paged-grid-empty-state strong {
+  color: #334155;
+  font-size: 13px;
+}
+
+.paged-grid-empty-state p {
+  max-width: 340px;
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.paged-grid-empty-state .primary-action {
+  margin-top: 6px;
+  padding: 0 12px;
 }
 
 .paged-grid-footer {

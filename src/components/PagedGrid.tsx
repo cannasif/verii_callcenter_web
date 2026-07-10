@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Inbox, LoaderCircle, RefreshCw, Search } from 'lucide-react';
 import type { PagedRequest, PagedResponse } from '../api';
 import './PagedGrid.css';
 
@@ -18,6 +18,9 @@ interface PagedGridProps<T> {
   rowKey: (row: T) => string | number;
   searchPlaceholder?: string;
   emptyText?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyAction?: ReactNode;
   defaultSortBy?: string;
   defaultSortDirection?: 'asc' | 'desc';
   pageSizeOptions?: number[];
@@ -33,6 +36,9 @@ export function PagedGrid<T>({
   rowKey,
   searchPlaceholder = 'Listede ara...',
   emptyText = 'Kayıt bulunamadı.',
+  emptyTitle = 'Henüz kayıt yok',
+  emptyDescription,
+  emptyAction,
   defaultSortBy = 'Id',
   defaultSortDirection = 'desc',
   pageSizeOptions = [10, 25, 50, 100],
@@ -112,9 +118,12 @@ export function PagedGrid<T>({
 
   const firstRow = totalCount === 0 ? 0 : ((pageNumber - 1) * pageSize) + 1;
   const lastRow = Math.min(pageNumber * pageSize, totalCount);
+  const isInitialLoading = isLoading && rows.length === 0;
+  const isRefreshing = isLoading && rows.length > 0;
+  const columnCount = columns.length + (renderActions ? 1 : 0);
 
   return (
-    <div className="paged-grid">
+    <section aria-busy={isLoading} className={`paged-grid${isRefreshing ? ' is-refreshing' : ''}`}>
       <div className="paged-grid-toolbar">
         <label className="paged-grid-search">
           <Search size={16} />
@@ -126,8 +135,11 @@ export function PagedGrid<T>({
           />
         </label>
         <div className="paged-grid-toolbar-actions">
-          <span className="paged-grid-total">{totalCount} kayıt</span>
-          <button aria-label="Listeyi yenile" className="grid-icon-button" type="button" onClick={() => setManualRefresh((value) => value + 1)}>
+          <span aria-live="polite" className="paged-grid-total">
+            {isLoading ? <LoaderCircle className="spin" size={13} /> : null}
+            {isLoading ? 'Yükleniyor' : `${totalCount} kayıt`}
+          </span>
+          <button aria-label="Listeyi yenile" className="grid-icon-button" disabled={isLoading} type="button" onClick={() => setManualRefresh((value) => value + 1)}>
             <RefreshCw className={isLoading ? 'spin' : ''} size={16} />
           </button>
         </div>
@@ -151,17 +163,26 @@ export function PagedGrid<T>({
             </tr>
           </thead>
           <tbody>
-            {isLoading && Array.from({ length: Math.min(pageSize, 6) }).map((_, index) => (
+            {isInitialLoading && Array.from({ length: Math.min(pageSize, 6) }).map((_, index) => (
               <tr className="skeleton-row" key={`skeleton-${index}`}>
                 {columns.map((column) => <td key={column.key}><span /></td>)}
                 {renderActions && <td><span /></td>}
               </tr>
             ))}
             {!isLoading && error && (
-              <tr><td className="paged-grid-message error" colSpan={columns.length + (renderActions ? 1 : 0)}>{error}</td></tr>
+              <tr><td className="paged-grid-message error" colSpan={columnCount}>{error}</td></tr>
             )}
             {!isLoading && !error && rows.length === 0 && (
-              <tr><td className="paged-grid-message" colSpan={columns.length + (renderActions ? 1 : 0)}>{emptyText}</td></tr>
+              <tr>
+                <td className="paged-grid-message" colSpan={columnCount}>
+                  <div className="paged-grid-empty-state">
+                    <span className="paged-grid-empty-icon"><Inbox size={21} /></span>
+                    <strong>{emptyTitle}</strong>
+                    <p>{emptyDescription ?? emptyText}</p>
+                    {emptyAction}
+                  </div>
+                </td>
+              </tr>
             )}
             {!isLoading && !error && rows.map((row) => (
               <tr className={onRowClick ? 'clickable' : undefined} key={rowKey(row)} onDoubleClick={() => onRowClick?.(row)}>
@@ -173,6 +194,12 @@ export function PagedGrid<T>({
             ))}
           </tbody>
         </table>
+        {isRefreshing && (
+          <div aria-live="polite" className="paged-grid-refresh-layer">
+            <LoaderCircle className="spin" size={17} />
+            Liste güncelleniyor
+          </div>
+        )}
       </div>
 
       <div className="paged-grid-footer">
@@ -187,10 +214,10 @@ export function PagedGrid<T>({
           >
             {pageSizeOptions.map((size) => <option key={size} value={size}>{size}</option>)}
           </select>
-          <span>{firstRow}-{lastRow} / {totalCount}</span>
+          <span>{totalCount === 0 ? 'Kayıt yok' : `${firstRow}-${lastRow} / ${totalCount}`}</span>
         </div>
         <div className="paged-grid-pagination">
-          <span>Sayfa {totalCount === 0 ? 0 : pageNumber} / {totalPages}</span>
+          <span>{totalCount === 0 ? 'Sonuç yok' : `Sayfa ${pageNumber} / ${totalPages}`}</span>
           <button aria-label="Önceki sayfa" className="grid-icon-button" disabled={pageNumber <= 1 || isLoading} type="button" onClick={() => setPageNumber((page) => Math.max(1, page - 1))}>
             <ChevronLeft size={17} />
           </button>
@@ -199,6 +226,6 @@ export function PagedGrid<T>({
           </button>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

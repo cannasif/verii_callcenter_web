@@ -503,6 +503,10 @@ function App() {
   const [editingUserAssignmentId, setEditingUserAssignmentId] = useState<number | null>(null);
   const [isRoleFormOpen, setIsRoleFormOpen] = useState(false);
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  const [isExceptionFormOpen, setIsExceptionFormOpen] = useState(false);
+  const [isDepartmentFormOpen, setIsDepartmentFormOpen] = useState(false);
+  const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
+  const [savingBusinessHour, setSavingBusinessHour] = useState<number | null>(null);
   const [gridRefreshVersion, setGridRefreshVersion] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -861,34 +865,70 @@ function App() {
       openTime: patch.openTime ?? current?.openTime ?? '09:00',
       closeTime: patch.closeTime ?? current?.closeTime ?? '18:00',
     };
-    const saved = await callCenterApi.upsertBusinessHour(selectedCompanyId, dayIndex, payload);
-    setBusinessHours((items) => [...items.filter((item) => Number(item.dayOfWeek) !== dayIndex), saved]);
+    setSavingBusinessHour(dayIndex);
+    try {
+      const saved = await callCenterApi.upsertBusinessHour(selectedCompanyId, dayIndex, payload);
+      setBusinessHours((items) => [...items.filter((item) => Number(item.dayOfWeek) !== dayIndex), saved]);
+      setStatus(`${dayLabels[dayIndex]} çalışma saati kaydedildi`);
+    } finally {
+      setSavingBusinessHour(null);
+    }
+  }
+
+  function resetExceptionDraft() {
+    setExceptionDraft({
+      date: new Date().toISOString().slice(0, 10),
+      title: '',
+      isClosed: true,
+      openTime: '09:00',
+      closeTime: '18:00',
+      messageOverride: '',
+    });
   }
 
   async function createException() {
     if (!selectedCompanyId || !exceptionDraft.title.trim()) return;
+    setStatus('Özel gün kaydediliyor');
     await callCenterApi.createCalendarException(selectedCompanyId, {
       ...exceptionDraft,
       openTime: exceptionDraft.isClosed ? null : exceptionDraft.openTime,
       closeTime: exceptionDraft.isClosed ? null : exceptionDraft.closeTime,
     });
     setGridRefreshVersion((version) => version + 1);
-    setExceptionDraft((draft) => ({ ...draft, title: '', messageOverride: '' }));
+    resetExceptionDraft();
+    setIsExceptionFormOpen(false);
+    setStatus('Özel gün kaydedildi');
+  }
+
+  function resetDepartmentDraft() {
+    setDepartmentDraft({ code: '', name: '', languageCode: '', isActive: true });
   }
 
   async function createDepartment() {
     if (!selectedCompanyId || !departmentDraft.code.trim() || !departmentDraft.name.trim()) return;
+    setStatus('Departman kaydediliyor');
     const created = await callCenterApi.createDepartment(selectedCompanyId, {
       ...departmentDraft,
       languageCode: departmentDraft.languageCode || null,
     });
     setDepartments((items) => [...items, created]);
     setGridRefreshVersion((version) => version + 1);
-    setDepartmentDraft({ code: '', name: '', languageCode: '', isActive: true });
+    resetDepartmentDraft();
+    setIsDepartmentFormOpen(false);
+    setStatus('Departman kaydedildi');
+  }
+
+  function resetRuleDraft() {
+    setRuleDraft({
+      name: '', priority: 100, isActive: true, appliesDuringBusinessHours: true,
+      appliesAfterHours: true, matchIntent: '', matchLanguageCode: '', action: 'AiAnswer',
+      targetDepartmentId: '', message: '',
+    });
   }
 
   async function createRule() {
     if (!selectedCompanyId || !ruleDraft.name.trim()) return;
+    setStatus('Yönlendirme kuralı kaydediliyor');
     await callCenterApi.createRoutingRule(selectedCompanyId, {
       ...ruleDraft,
       action: ruleDraft.action as RoutingAction,
@@ -898,7 +938,9 @@ function App() {
       message: ruleDraft.message || null,
     });
     setGridRefreshVersion((version) => version + 1);
-    setRuleDraft((draft) => ({ ...draft, name: '', matchIntent: '', message: '' }));
+    resetRuleDraft();
+    setIsRuleFormOpen(false);
+    setStatus('Yönlendirme kuralı kaydedildi');
   }
 
   function editRole(role: CompanyRole) {
@@ -1416,30 +1458,36 @@ function App() {
           </section>}
 
           {activeSection === 'hours' && <section className="panel company-panel">
-            <PanelTitle icon={<Clock3 size={18} />} title="Haftalık Çalışma Saatleri" />
+            <div className="management-panel-header">
+              <div>
+                <PanelTitle icon={<Clock3 size={18} />} title="Haftalık Çalışma Saatleri" />
+                <p className="panel-helper">Saat değişiklikleri ilgili gün için anında kaydedilir.</p>
+              </div>
+              <span className="definition-status">{savingBusinessHour === null ? 'Kaydedilmiş yapılandırma' : `${dayLabels[savingBusinessHour]} kaydediliyor`}</span>
+            </div>
             <div className="hours-list">
               {dayLabels.map((label, dayIndex) => {
                 const item = businessHours.find((hour) => Number(hour.dayOfWeek) === dayIndex);
                 return (
                   <div className="hour-row" key={label}>
-                    <strong>{label}</strong>
+                    <strong><span className={savingBusinessHour === dayIndex ? 'hour-save-dot saving' : 'hour-save-dot'} />{label}</strong>
                     <label className="check">
                       <input
                         checked={item?.isClosed ?? dayIndex === 0}
-                        disabled={!hasWorkspacePermission('calendar.manage')}
+                      disabled={savingBusinessHour === dayIndex || !hasWorkspacePermission('calendar.manage')}
                         type="checkbox"
                         onChange={(event) => void saveBusinessHour(dayIndex, { isClosed: event.target.checked })}
                       />
                       Kapalı
                     </label>
                     <input
-                      disabled={item?.isClosed || !hasWorkspacePermission('calendar.manage')}
+                      disabled={savingBusinessHour === dayIndex || item?.isClosed || !hasWorkspacePermission('calendar.manage')}
                       type="time"
                       value={(item?.openTime ?? '09:00').slice(0, 5)}
                       onChange={(event) => void saveBusinessHour(dayIndex, { openTime: event.target.value })}
                     />
                     <input
-                      disabled={item?.isClosed || !hasWorkspacePermission('calendar.manage')}
+                      disabled={savingBusinessHour === dayIndex || item?.isClosed || !hasWorkspacePermission('calendar.manage')}
                       type="time"
                       value={(item?.closeTime ?? '18:00').slice(0, 5)}
                       onChange={(event) => void saveBusinessHour(dayIndex, { closeTime: event.target.value })}
@@ -1451,34 +1499,16 @@ function App() {
           </section>}
 
           {activeSection === 'exceptions' && <section className="panel company-panel">
-            <PanelTitle icon={<CalendarDays size={18} />} title="Özel Gün / İstisna" />
-            {hasWorkspacePermission('calendar.manage') && <>
-            <div className="form-grid two compact">
-              <Field label="Tarih">
-                <input type="date" value={exceptionDraft.date} onChange={(event) => setExceptionDraft({ ...exceptionDraft, date: event.target.value })} />
-              </Field>
-              <Field label="Başlık">
-                <input value={exceptionDraft.title} onChange={(event) => setExceptionDraft({ ...exceptionDraft, title: event.target.value })} placeholder="Bayram, bakım, yarım gün" />
-              </Field>
-              <label className="check">
-                <input checked={exceptionDraft.isClosed} type="checkbox" onChange={(event) => setExceptionDraft({ ...exceptionDraft, isClosed: event.target.checked })} />
-                Bugün kapalı
-              </label>
-              <div className="time-pair">
-                <input disabled={exceptionDraft.isClosed} type="time" value={exceptionDraft.openTime} onChange={(event) => setExceptionDraft({ ...exceptionDraft, openTime: event.target.value })} />
-                <input disabled={exceptionDraft.isClosed} type="time" value={exceptionDraft.closeTime} onChange={(event) => setExceptionDraft({ ...exceptionDraft, closeTime: event.target.value })} />
-              </div>
+            <div className="management-panel-header">
+              <PanelTitle icon={<CalendarDays size={18} />} title="Özel Gün / İstisna" />
+              {hasWorkspacePermission('calendar.manage') && <button className="primary-action" disabled={!selectedCompanyId} type="button" onClick={() => { resetExceptionDraft(); setIsExceptionFormOpen(true); }}><Plus size={16} /> Yeni özel gün</button>}
             </div>
-            <Field label="Mesaj override">
-              <input value={exceptionDraft.messageOverride} onChange={(event) => setExceptionDraft({ ...exceptionDraft, messageOverride: event.target.value })} />
-            </Field>
-            <button className="secondary-action" type="button" onClick={createException}>
-              <Plus size={16} /> İstisna ekle
-            </button>
-            </>}
             <PagedGrid
               columns={exceptionGridColumns}
               defaultSortBy="Date"
+              emptyAction={hasWorkspacePermission('calendar.manage') ? <button className="primary-action" type="button" onClick={() => { resetExceptionDraft(); setIsExceptionFormOpen(true); }}><Plus size={15} /> İlk özel günü ekle</button> : undefined}
+              emptyDescription="Tatil, bakım veya yarım gün gibi çalışma düzenini değiştiren tarihleri buradan tanımlayın."
+              emptyTitle="Özel gün tanımı yok"
               emptyText="Özel gün veya çalışma istisnası bulunmuyor."
               fetchPage={(request) => selectedCompanyId ? callCenterApi.queryCalendarExceptions(selectedCompanyId, request) : emptyPage(request)}
               refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
@@ -1488,19 +1518,17 @@ function App() {
           </section>}
 
           {activeSection === 'departments' && <section className="panel company-panel">
-            <PanelTitle icon={<Headphones size={18} />} title="Departmanlar" />
-            {hasWorkspacePermission('departments.manage') && (
-            <div className="inline-form">
-              <input placeholder="Kod" value={departmentDraft.code} onChange={(event) => setDepartmentDraft({ ...departmentDraft, code: event.target.value })} />
-              <input placeholder="Departman adı" value={departmentDraft.name} onChange={(event) => setDepartmentDraft({ ...departmentDraft, name: event.target.value })} />
-              <input placeholder="Dil" value={departmentDraft.languageCode} onChange={(event) => setDepartmentDraft({ ...departmentDraft, languageCode: event.target.value })} />
-              <button type="button" onClick={createDepartment}><Plus size={15} /></button>
+            <div className="management-panel-header">
+              <PanelTitle icon={<Headphones size={18} />} title="Departman ve Kuyruklar" />
+              {hasWorkspacePermission('departments.manage') && <button className="primary-action" disabled={!selectedCompanyId} type="button" onClick={() => { resetDepartmentDraft(); setIsDepartmentFormOpen(true); }}><Plus size={16} /> Yeni departman</button>}
             </div>
-            )}
             <PagedGrid
               columns={departmentGridColumns}
               defaultSortBy="Name"
               defaultSortDirection="asc"
+              emptyAction={hasWorkspacePermission('departments.manage') ? <button className="primary-action" type="button" onClick={() => { resetDepartmentDraft(); setIsDepartmentFormOpen(true); }}><Plus size={15} /> İlk departmanı ekle</button> : undefined}
+              emptyDescription="Canlı aktarım, görev dağıtımı ve dil bazlı hizmet için önce kuyrukları tanımlayın."
+              emptyTitle="Departman veya kuyruk yok"
               emptyText="Departman veya kuyruk tanımı bulunmuyor."
               fetchPage={(request) => selectedCompanyId ? callCenterApi.queryDepartments(selectedCompanyId, request) : emptyPage(request)}
               refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
@@ -1510,32 +1538,17 @@ function App() {
           </section>}
 
           {activeSection === 'rules' && <section className="panel company-panel">
-            <PanelTitle icon={<GitBranch size={18} />} title="Yönlendirme Kuralları" />
-            {hasWorkspacePermission('routing.manage') && (
-            <div className="rule-builder">
-              <input placeholder="Kural adı" value={ruleDraft.name} onChange={(event) => setRuleDraft({ ...ruleDraft, name: event.target.value })} />
-              <input placeholder="Intent ör: reservation" value={ruleDraft.matchIntent} onChange={(event) => setRuleDraft({ ...ruleDraft, matchIntent: event.target.value })} />
-              <input placeholder="Dil ör: tr-TR" value={ruleDraft.matchLanguageCode} onChange={(event) => setRuleDraft({ ...ruleDraft, matchLanguageCode: event.target.value })} />
-              <select value={ruleDraft.action} onChange={(event) => setRuleDraft({ ...ruleDraft, action: event.target.value })}>
-                <option value="AiAnswer">AI cevaplasın</option>
-                <option value="TransferToQueue">Canlı kuyruğa aktar</option>
-                <option value="CreateCallback">Geri arama kaydı</option>
-                <option value="PlayMessage">Mesaj oku</option>
-                <option value="Voicemail">Sesli mesaj al</option>
-              </select>
-              <select value={ruleDraft.targetDepartmentId} onChange={(event) => setRuleDraft({ ...ruleDraft, targetDepartmentId: event.target.value })}>
-                <option value="">Departman yok</option>
-                {departments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}</option>
-                ))}
-              </select>
-              <button type="button" onClick={createRule}><Plus size={15} /> Kural ekle</button>
+            <div className="management-panel-header">
+              <PanelTitle icon={<GitBranch size={18} />} title="Yönlendirme Kuralları" />
+              {hasWorkspacePermission('routing.manage') && <button className="primary-action" disabled={!selectedCompanyId} type="button" onClick={() => { resetRuleDraft(); setIsRuleFormOpen(true); }}><Plus size={16} /> Yeni kural</button>}
             </div>
-            )}
             <PagedGrid
               columns={ruleGridColumns}
               defaultSortBy="Priority"
               defaultSortDirection="asc"
+              emptyAction={hasWorkspacePermission('routing.manage') ? <button className="primary-action" type="button" onClick={() => { resetRuleDraft(); setIsRuleFormOpen(true); }}><Plus size={15} /> İlk kuralı ekle</button> : undefined}
+              emptyDescription="AI yanıtı, canlı aktarım ve geri arama davranışlarını öncelikli kurallarla yönetin."
+              emptyTitle="Yönlendirme kuralı yok"
               emptyText="Yönlendirme kuralı bulunmuyor."
               fetchPage={(request) => selectedCompanyId ? callCenterApi.queryRoutingRules(selectedCompanyId, request) : emptyPage(request)}
               refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
@@ -1558,6 +1571,9 @@ function App() {
               columns={userGridColumns}
               defaultSortBy="DisplayName"
               defaultSortDirection="asc"
+              emptyAction={hasWorkspacePermission('users.manage') ? <button className="primary-action" type="button" onClick={() => { resetUserDraft(); setIsUserFormOpen(true); }}><Plus size={15} /> İlk kullanıcıyı ekle</button> : undefined}
+              emptyDescription="Kullanıcıları seçili firmaya bir rol ve görev tipiyle atayarak erişimlerini yönetin."
+              emptyTitle="Firmaya atanmış kullanıcı yok"
               emptyText="Bu firmaya atanmış kullanıcı bulunmuyor."
               fetchPage={(request) => selectedCompanyId ? callCenterApi.queryCompanyUsers(selectedCompanyId, request) : emptyPage(request)}
               onRowClick={editCompanyUser}
@@ -1586,6 +1602,9 @@ function App() {
               columns={roleGridColumns}
               defaultSortBy="Name"
               defaultSortDirection="asc"
+              emptyAction={hasWorkspacePermission('roles.manage') ? <button className="primary-action" type="button" onClick={() => { resetRoleDraft(); setIsRoleFormOpen(true); }}><Plus size={15} /> İlk rolü oluştur</button> : undefined}
+              emptyDescription="Kullanıcıların hangi modülleri görebileceğini ve hangi işlemleri yapabileceğini rol üzerinden tanımlayın."
+              emptyTitle="Firma rolü tanımlanmamış"
               emptyText="Bu firma için henüz rol tanımlanmadı."
               fetchPage={(request) => selectedCompanyId ? callCenterApi.queryCompanyRoles(selectedCompanyId, request) : emptyPage(request)}
               onRowClick={editRole}
@@ -1637,6 +1656,8 @@ function App() {
             <PagedGrid
               columns={logGridColumns}
               defaultSortBy="StartedAtUtc"
+              emptyDescription="Çağrı kararları, simülasyon kayıtları veya işlem logları oluştuğunda burada görünür."
+              emptyTitle="Henüz konuşma kaydı yok"
               emptyText="Konuşma veya karar kaydı bulunmuyor."
               fetchPage={(request) => selectedCompanyId ? callCenterApi.queryLogs(selectedCompanyId, request) : emptyPage(request)}
               refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
@@ -1645,6 +1666,72 @@ function App() {
             />
           </section>}
         </div>
+
+        {isExceptionFormOpen && (
+          <div className="drawer-backdrop" role="presentation" onMouseDown={() => setIsExceptionFormOpen(false)}>
+            <aside aria-label="Yeni özel gün" className="form-drawer" onMouseDown={(event) => event.stopPropagation()}>
+              <header className="form-drawer-header">
+                <div><span>Firma Yönetimi</span><h2>Yeni özel gün</h2><p>Bu tarih için çalışma düzenini ve gerekirse özel bilgilendirme mesajını belirleyin.</p></div>
+                <button aria-label="Özel gün formunu kapat" className="grid-icon-button" type="button" onClick={() => setIsExceptionFormOpen(false)}><X size={17} /></button>
+              </header>
+              <div className="form-drawer-body">
+                <div className="form-grid two">
+                  <Field label="Tarih"><input type="date" value={exceptionDraft.date} onChange={(event) => setExceptionDraft({ ...exceptionDraft, date: event.target.value })} /></Field>
+                  <Field label="Başlık"><input value={exceptionDraft.title} onChange={(event) => setExceptionDraft({ ...exceptionDraft, title: event.target.value })} placeholder="Bayram, bakım, yarım gün" /></Field>
+                </div>
+                <label className="check"><input checked={exceptionDraft.isClosed} type="checkbox" onChange={(event) => setExceptionDraft({ ...exceptionDraft, isClosed: event.target.checked })} /> Bu tarihte tamamen kapalı</label>
+                <div className="form-grid two">
+                  <Field label="Açılış"><input disabled={exceptionDraft.isClosed} type="time" value={exceptionDraft.openTime} onChange={(event) => setExceptionDraft({ ...exceptionDraft, openTime: event.target.value })} /></Field>
+                  <Field label="Kapanış"><input disabled={exceptionDraft.isClosed} type="time" value={exceptionDraft.closeTime} onChange={(event) => setExceptionDraft({ ...exceptionDraft, closeTime: event.target.value })} /></Field>
+                </div>
+                <Field label="Mesaj override"><textarea value={exceptionDraft.messageOverride} onChange={(event) => setExceptionDraft({ ...exceptionDraft, messageOverride: event.target.value })} placeholder="Arayana okunacak özel mesaj" /></Field>
+              </div>
+              <footer className="form-drawer-footer"><button className="secondary-action" type="button" onClick={() => setIsExceptionFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={!exceptionDraft.title.trim()} type="button" onClick={createException}><Save size={16} /> Özel günü kaydet</button></footer>
+            </aside>
+          </div>
+        )}
+
+        {isDepartmentFormOpen && (
+          <div className="drawer-backdrop" role="presentation" onMouseDown={() => setIsDepartmentFormOpen(false)}>
+            <aside aria-label="Yeni departman" className="form-drawer" onMouseDown={(event) => event.stopPropagation()}>
+              <header className="form-drawer-header">
+                <div><span>Operasyon Tanımları</span><h2>Yeni departman</h2><p>Aktarım ve kuyruk yönetiminde kullanılacak operasyon birimini oluşturun.</p></div>
+                <button aria-label="Departman formunu kapat" className="grid-icon-button" type="button" onClick={() => setIsDepartmentFormOpen(false)}><X size={17} /></button>
+              </header>
+              <div className="form-drawer-body">
+                <Field label="Departman kodu"><input value={departmentDraft.code} onChange={(event) => setDepartmentDraft({ ...departmentDraft, code: event.target.value })} placeholder="support-tr" /></Field>
+                <Field label="Departman adı"><input value={departmentDraft.name} onChange={(event) => setDepartmentDraft({ ...departmentDraft, name: event.target.value })} placeholder="Türkçe Destek" /></Field>
+                <Field label="Dil kodu"><input value={departmentDraft.languageCode} onChange={(event) => setDepartmentDraft({ ...departmentDraft, languageCode: event.target.value })} placeholder="tr-TR" /></Field>
+                <label className="check"><input checked={departmentDraft.isActive} type="checkbox" onChange={(event) => setDepartmentDraft({ ...departmentDraft, isActive: event.target.checked })} /> Departman aktif</label>
+              </div>
+              <footer className="form-drawer-footer"><button className="secondary-action" type="button" onClick={() => setIsDepartmentFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={!departmentDraft.code.trim() || !departmentDraft.name.trim()} type="button" onClick={createDepartment}><Save size={16} /> Departmanı kaydet</button></footer>
+            </aside>
+          </div>
+        )}
+
+        {isRuleFormOpen && (
+          <div className="drawer-backdrop" role="presentation" onMouseDown={() => setIsRuleFormOpen(false)}>
+            <aside aria-label="Yeni yönlendirme kuralı" className="form-drawer wide" onMouseDown={(event) => event.stopPropagation()}>
+              <header className="form-drawer-header">
+                <div><span>Operasyon Tanımları</span><h2>Yeni yönlendirme kuralı</h2><p>Gelen talebin hangi koşulda hangi aksiyona yönlendirileceğini belirleyin.</p></div>
+                <button aria-label="Yönlendirme kuralı formunu kapat" className="grid-icon-button" type="button" onClick={() => setIsRuleFormOpen(false)}><X size={17} /></button>
+              </header>
+              <div className="form-drawer-body">
+                <div className="form-grid two">
+                  <Field label="Kural adı"><input value={ruleDraft.name} onChange={(event) => setRuleDraft({ ...ruleDraft, name: event.target.value })} placeholder="Mesai dışı destek aktarımı" /></Field>
+                  <Field label="Öncelik"><input min="1" type="number" value={ruleDraft.priority} onChange={(event) => setRuleDraft({ ...ruleDraft, priority: Number(event.target.value) || 1 })} /></Field>
+                  <Field label="Intent"><input value={ruleDraft.matchIntent} onChange={(event) => setRuleDraft({ ...ruleDraft, matchIntent: event.target.value })} placeholder="reservation" /></Field>
+                  <Field label="Dil"><input value={ruleDraft.matchLanguageCode} onChange={(event) => setRuleDraft({ ...ruleDraft, matchLanguageCode: event.target.value })} placeholder="tr-TR" /></Field>
+                  <Field label="Aksiyon"><select value={ruleDraft.action} onChange={(event) => setRuleDraft({ ...ruleDraft, action: event.target.value })}><option value="AiAnswer">AI cevaplasın</option><option value="TransferToQueue">Canlı kuyruğa aktar</option><option value="CreateCallback">Geri arama kaydı</option><option value="PlayMessage">Mesaj oku</option><option value="Voicemail">Sesli mesaj al</option></select></Field>
+                  <Field label="Hedef departman"><select value={ruleDraft.targetDepartmentId} onChange={(event) => setRuleDraft({ ...ruleDraft, targetDepartmentId: event.target.value })}><option value="">Departman seçilmedi</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></Field>
+                </div>
+                <Field label="Okunacak mesaj"><textarea value={ruleDraft.message} onChange={(event) => setRuleDraft({ ...ruleDraft, message: event.target.value })} placeholder="Aksiyon mesaj okuyacaksa metni girin" /></Field>
+                <div className="check-stack"><label className="check"><input checked={ruleDraft.isActive} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, isActive: event.target.checked })} /> Kural aktif</label><label className="check"><input checked={ruleDraft.appliesDuringBusinessHours} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, appliesDuringBusinessHours: event.target.checked })} /> Mesai saatlerinde uygula</label><label className="check"><input checked={ruleDraft.appliesAfterHours} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, appliesAfterHours: event.target.checked })} /> Mesai dışında uygula</label></div>
+              </div>
+              <footer className="form-drawer-footer"><button className="secondary-action" type="button" onClick={() => setIsRuleFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={!ruleDraft.name.trim()} type="button" onClick={createRule}><Save size={16} /> Kuralı kaydet</button></footer>
+            </aside>
+          </div>
+        )}
 
         {isUserFormOpen && (
           <div className="drawer-backdrop" role="presentation" onMouseDown={() => setIsUserFormOpen(false)}>
