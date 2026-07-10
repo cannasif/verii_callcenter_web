@@ -19,6 +19,16 @@ export interface Company {
   id: number;
   code: string;
   name: string;
+  companyType: string;
+  legalName?: string | null;
+  taxNumber?: string | null;
+  taxOffice?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  country?: string | null;
+  notes?: string | null;
   timeZoneId: string;
   defaultLanguageCode: string;
   kvkkAnnouncementText?: string | null;
@@ -40,6 +50,15 @@ export interface AuthContext {
   isSuperAdmin: boolean;
   selectedCompanyId?: number | null;
   companies: AuthCompany[];
+}
+
+export interface LoginResponse {
+  success: boolean;
+  requiresCompanySelection: boolean;
+  token?: string | null;
+  context?: AuthContext | null;
+  companies: AuthCompany[];
+  message?: string | null;
 }
 
 export interface BusinessHour {
@@ -114,6 +133,8 @@ export interface ConversationLog {
 }
 
 export const callCenterApi = {
+  login: (payload: { email: string; password: string; companyId?: number | null }) =>
+    api.post<LoginResponse>('/api/auth/login', payload).then((x) => x.data),
   authContext: (selectedCompanyId?: number | null) =>
     api
       .get<AuthContext>('/api/auth-context', { params: selectedCompanyId ? { selectedCompanyId } : undefined })

@@ -6,6 +6,8 @@ import {
   GitBranch,
   Headphones,
   History,
+  KeyRound,
+  LogOut,
   Play,
   Plus,
   RefreshCw,
@@ -15,6 +17,7 @@ import './App.css';
 import {
   callCenterApi,
   type AuthContext,
+  type AuthCompany,
   type BusinessHour,
   type CalendarException,
   type Company,
@@ -42,6 +45,16 @@ const actionLabels: Record<string, string> = {
 const emptyCompany = {
   code: '',
   name: '',
+  companyType: 'Customer',
+  legalName: '',
+  taxNumber: '',
+  taxOffice: '',
+  email: '',
+  phone: '',
+  address: '',
+  city: '',
+  country: 'Türkiye',
+  notes: '',
   timeZoneId: 'Europe/Istanbul',
   defaultLanguageCode: 'tr-TR',
   kvkkAnnouncementText: 'Görüşmeler hizmet kalitesi ve işlem güvenliği amacıyla kayıt altına alınabilir.',
@@ -52,6 +65,12 @@ const emptyCompany = {
 function App() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [authContext, setAuthContext] = useState<AuthContext | null>(null);
+  const [loginCompanies, setLoginCompanies] = useState<AuthCompany[]>([]);
+  const [loginDraft, setLoginDraft] = useState({
+    email: 'admin@v3rii.com',
+    password: '',
+    companyId: '',
+  });
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [companyDraft, setCompanyDraft] = useState(emptyCompany);
   const [businessHours, setBusinessHours] = useState<BusinessHour[]>([]);
@@ -101,7 +120,10 @@ function App() {
   );
 
   useEffect(() => {
-    void bootstrap();
+    const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
+    if (token) {
+      void bootstrap();
+    }
   }, []);
 
   useEffect(() => {
@@ -114,6 +136,16 @@ function App() {
     setCompanyDraft({
       code: selectedCompany.code,
       name: selectedCompany.name,
+      companyType: selectedCompany.companyType ?? 'Customer',
+      legalName: selectedCompany.legalName ?? '',
+      taxNumber: selectedCompany.taxNumber ?? '',
+      taxOffice: selectedCompany.taxOffice ?? '',
+      email: selectedCompany.email ?? '',
+      phone: selectedCompany.phone ?? '',
+      address: selectedCompany.address ?? '',
+      city: selectedCompany.city ?? '',
+      country: selectedCompany.country ?? '',
+      notes: selectedCompany.notes ?? '',
       timeZoneId: selectedCompany.timeZoneId,
       defaultLanguageCode: selectedCompany.defaultLanguageCode,
       kvkkAnnouncementText: selectedCompany.kvkkAnnouncementText ?? '',
@@ -128,6 +160,54 @@ function App() {
     setAuthContext(context);
     setSelectedCompanyId(context.selectedCompanyId ?? context.companies[0]?.id ?? null);
     await refreshCompanies(context);
+  }
+
+  async function login() {
+    let response;
+    try {
+      setStatus('Giriş kontrol ediliyor');
+      response = await callCenterApi.login({
+        email: loginDraft.email,
+        password: loginDraft.password,
+        companyId: loginDraft.companyId ? Number(loginDraft.companyId) : null,
+      });
+    } catch {
+      setStatus('E-posta, şifre veya firma seçimi hatalı');
+      return;
+    }
+
+    if (response.requiresCompanySelection) {
+      setLoginCompanies(response.companies);
+      setStatus(response.message ?? 'Firma seçimi gerekli');
+      return;
+    }
+
+    if (!response.success || !response.token || !response.context) {
+      setStatus(response.message ?? 'Giriş yapılamadı');
+      return;
+    }
+
+    localStorage.setItem('access_token', response.token);
+    setAuthContext(response.context);
+    setSelectedCompanyId(response.context.selectedCompanyId ?? response.context.companies[0]?.id ?? null);
+    setLoginCompanies([]);
+    await refreshCompanies(response.context);
+    setStatus('Giriş başarılı');
+  }
+
+  function logout() {
+    localStorage.removeItem('access_token');
+    sessionStorage.removeItem('access_token');
+    setAuthContext(null);
+    setCompanies([]);
+    setSelectedCompanyId(null);
+    setBusinessHours([]);
+    setExceptions([]);
+    setDepartments([]);
+    setRules([]);
+    setLogs([]);
+    setDecision(null);
+    setStatus('Çıkış yapıldı');
   }
 
   async function refreshCompanies(context = authContext) {
@@ -239,6 +319,44 @@ function App() {
     setStatus('Simülasyon tamamlandı');
   }
 
+  if (!authContext) {
+    return (
+      <main className="login-page">
+        <section className="login-panel">
+          <div className="login-brand">
+            <Headphones size={30} />
+            <div>
+              <h1>V3RII Call Center</h1>
+              <p>Admin paneline giriş</p>
+            </div>
+          </div>
+          <div className="login-form">
+            <Field label="E-posta">
+              <input value={loginDraft.email} onChange={(event) => setLoginDraft({ ...loginDraft, email: event.target.value })} />
+            </Field>
+            <Field label="Şifre">
+              <input type="password" value={loginDraft.password} onChange={(event) => setLoginDraft({ ...loginDraft, password: event.target.value })} />
+            </Field>
+            {loginCompanies.length > 0 && (
+              <Field label="Firma">
+                <select value={loginDraft.companyId} onChange={(event) => setLoginDraft({ ...loginDraft, companyId: event.target.value })}>
+                  <option value="">Firma seçin</option>
+                  {loginCompanies.map((company) => (
+                    <option key={company.id} value={company.id}>{company.name}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            <button className="save-button" type="button" onClick={login}>
+              <KeyRound size={16} /> Giriş yap
+            </button>
+            <div className="login-status">{status}</div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -263,6 +381,10 @@ function App() {
           <strong>{authContext?.displayName ?? 'Oturum bekleniyor'}</strong>
           <span>{authContext?.isSuperAdmin ? 'Süper admin' : 'Firma admini'}</span>
         </div>
+
+        <button className="logout-button" type="button" onClick={logout}>
+          <LogOut size={16} /> Çıkış
+        </button>
 
         <div className="company-list">
           {companies.map((company) => (
@@ -294,7 +416,7 @@ function App() {
 
         <div className="grid">
           <section className="panel company-panel">
-            <PanelTitle icon={<Building2 size={18} />} title="Firma Ayarı" />
+            <PanelTitle icon={<Building2 size={18} />} title="Firma Tanımı" />
             {!authContext?.isSuperAdmin && (
               <div className="notice">Firma tanımlama ve firma ana bilgileri sadece süper admin tarafından yönetilir.</div>
             )}
@@ -305,6 +427,39 @@ function App() {
               <Field label="Firma adı">
                 <input disabled={!authContext?.isSuperAdmin} value={companyDraft.name} onChange={(event) => setCompanyDraft({ ...companyDraft, name: event.target.value })} />
               </Field>
+              <Field label="Firma tipi">
+                <select disabled={!authContext?.isSuperAdmin} value={companyDraft.companyType} onChange={(event) => setCompanyDraft({ ...companyDraft, companyType: event.target.value })}>
+                  <option value="Customer">Müşteri</option>
+                  <option value="Internal">İç firma</option>
+                  <option value="Partner">Partner</option>
+                  <option value="Vendor">Tedarikçi</option>
+                </select>
+              </Field>
+              <label className="check active-check">
+                <input checked={companyDraft.isActive} disabled={!authContext?.isSuperAdmin} type="checkbox" onChange={(event) => setCompanyDraft({ ...companyDraft, isActive: event.target.checked })} />
+                Aktif firma
+              </label>
+              <Field label="Ticari unvan">
+                <input disabled={!authContext?.isSuperAdmin} value={companyDraft.legalName ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, legalName: event.target.value })} />
+              </Field>
+              <Field label="Vergi no">
+                <input disabled={!authContext?.isSuperAdmin} value={companyDraft.taxNumber ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, taxNumber: event.target.value })} />
+              </Field>
+              <Field label="Vergi dairesi">
+                <input disabled={!authContext?.isSuperAdmin} value={companyDraft.taxOffice ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, taxOffice: event.target.value })} />
+              </Field>
+              <Field label="E-posta">
+                <input disabled={!authContext?.isSuperAdmin} value={companyDraft.email ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, email: event.target.value })} />
+              </Field>
+              <Field label="Telefon">
+                <input disabled={!authContext?.isSuperAdmin} value={companyDraft.phone ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, phone: event.target.value })} />
+              </Field>
+              <Field label="Şehir">
+                <input disabled={!authContext?.isSuperAdmin} value={companyDraft.city ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, city: event.target.value })} />
+              </Field>
+              <Field label="Ülke">
+                <input disabled={!authContext?.isSuperAdmin} value={companyDraft.country ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, country: event.target.value })} />
+              </Field>
               <Field label="Zaman dilimi">
                 <input disabled={!authContext?.isSuperAdmin} value={companyDraft.timeZoneId} onChange={(event) => setCompanyDraft({ ...companyDraft, timeZoneId: event.target.value })} />
               </Field>
@@ -312,11 +467,17 @@ function App() {
                 <input disabled={!authContext?.isSuperAdmin} value={companyDraft.defaultLanguageCode} onChange={(event) => setCompanyDraft({ ...companyDraft, defaultLanguageCode: event.target.value })} />
               </Field>
             </div>
+            <Field label="Adres">
+              <textarea disabled={!authContext?.isSuperAdmin} value={companyDraft.address ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, address: event.target.value })} />
+            </Field>
             <Field label="KVKK / kayıt anonsu">
               <textarea disabled={!authContext?.isSuperAdmin} value={companyDraft.kvkkAnnouncementText ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, kvkkAnnouncementText: event.target.value })} />
             </Field>
             <Field label="Mesai dışı mesajı">
               <textarea disabled={!authContext?.isSuperAdmin} value={companyDraft.afterHoursMessage ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, afterHoursMessage: event.target.value })} />
+            </Field>
+            <Field label="Not">
+              <textarea disabled={!authContext?.isSuperAdmin} value={companyDraft.notes ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, notes: event.target.value })} />
             </Field>
             {authContext?.isSuperAdmin && (
               <button className="save-button" type="button" onClick={saveCompany}>
