@@ -48,6 +48,342 @@ const actionLabels: Record<string, string> = {
   '4': 'Sesli mesaj al',
 };
 
+const loginLanguages = [
+  { code: 'tr', label: 'Türkçe', shortLabel: 'TR' },
+  { code: 'en', label: 'English', shortLabel: 'EN' },
+  { code: 'de', label: 'Deutsch', shortLabel: 'DE' },
+  { code: 'fr', label: 'Français', shortLabel: 'FR' },
+  { code: 'es', label: 'Español', shortLabel: 'ES' },
+  { code: 'it', label: 'Italiano', shortLabel: 'IT' },
+  { code: 'ar', label: 'العربية', shortLabel: 'AR' },
+  { code: 'ru', label: 'Русский', shortLabel: 'RU' },
+  { code: 'pt', label: 'Português', shortLabel: 'PT' },
+  { code: 'nl', label: 'Nederlands', shortLabel: 'NL' },
+] as const;
+
+type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
+
+const loginTranslations: Record<LoginLanguageCode, {
+  brandSuffix: string;
+  heroLine1: string;
+  heroLine2: string;
+  heroLine3: string;
+  heroText: string;
+  serverStatus: string;
+  online: string;
+  securityProtocol: string;
+  active: string;
+  title: string;
+  subtitle: string;
+  company: string;
+  companyPlaceholder: string;
+  operator: string;
+  operatorPlaceholder: string;
+  password: string;
+  remember: string;
+  submit: string;
+  securityNetwork: string;
+  language: string;
+  required: string;
+  companyLoadFailed: string;
+  checking: string;
+  invalidLogin: string;
+  companyRequired: string;
+  loginFailed: string;
+  loginSuccess: string;
+}> = {
+  tr: {
+    brandSuffix: 'COMMS',
+    heroLine1: 'Müşteri',
+    heroLine2: 'İletişim',
+    heroLine3: 'Merkezi',
+    heroText: 'Temsilci ve yönetici portalına erişmek için firma ve kullanıcı bilgilerinizi doğrulayın.',
+    serverStatus: 'SUNUCU DURUMU',
+    online: 'ÇEVRİMİÇİ',
+    securityProtocol: 'GÜVENLİK PROTOKOLÜ',
+    active: 'AKTİF',
+    title: 'Temsilci Girişi',
+    subtitle: 'Devam etmek için operatör bilgilerinizi giriniz.',
+    company: 'Firma',
+    companyPlaceholder: 'Super admin / firma seçmeden giriş',
+    operator: 'Operatör ID / E-posta',
+    operatorPlaceholder: 'admin@v3rii.com',
+    password: 'Erişim Kodu',
+    remember: 'Terminali hatırla',
+    submit: 'Sisteme Bağlan',
+    securityNetwork: 'V3RII Güvenlik Ağı © 2026',
+    language: 'Dil',
+    required: 'E-posta ve şifre zorunlu',
+    companyLoadFailed: 'Firma listesi yüklenemedi',
+    checking: 'Giriş kontrol ediliyor',
+    invalidLogin: 'E-posta, şifre veya firma seçimi hatalı',
+    companyRequired: 'Firma seçimi gerekli',
+    loginFailed: 'Giriş yapılamadı',
+    loginSuccess: 'Giriş başarılı',
+  },
+  en: {
+    brandSuffix: 'COMMS',
+    heroLine1: 'Customer',
+    heroLine2: 'Contact',
+    heroLine3: 'Center',
+    heroText: 'Verify your company and user credentials to access the agent and admin portal.',
+    serverStatus: 'SERVER STATUS',
+    online: 'ONLINE',
+    securityProtocol: 'SECURITY PROTOCOL',
+    active: 'ACTIVE',
+    title: 'Agent Login',
+    subtitle: 'Enter your operator credentials to continue.',
+    company: 'Company',
+    companyPlaceholder: 'Super admin / continue without company',
+    operator: 'Operator ID / Email',
+    operatorPlaceholder: 'admin@v3rii.com',
+    password: 'Access Code',
+    remember: 'Remember terminal',
+    submit: 'Connect System',
+    securityNetwork: 'V3RII Security Network © 2026',
+    language: 'Language',
+    required: 'Email and password are required',
+    companyLoadFailed: 'Company list could not be loaded',
+    checking: 'Checking credentials',
+    invalidLogin: 'Email, password or company selection is invalid',
+    companyRequired: 'Company selection is required',
+    loginFailed: 'Login failed',
+    loginSuccess: 'Login successful',
+  },
+  de: {
+    brandSuffix: 'COMMS',
+    heroLine1: 'Kunden',
+    heroLine2: 'Kontakt',
+    heroLine3: 'Zentrum',
+    heroText: 'Prüfen Sie Firma und Benutzerangaben, um das Portal zu öffnen.',
+    serverStatus: 'SERVERSTATUS',
+    online: 'ONLINE',
+    securityProtocol: 'SICHERHEIT',
+    active: 'AKTIV',
+    title: 'Agent Anmeldung',
+    subtitle: 'Geben Sie Ihre Zugangsdaten ein.',
+    company: 'Firma',
+    companyPlaceholder: 'Superadmin / ohne Firma fortfahren',
+    operator: 'Operator-ID / E-Mail',
+    operatorPlaceholder: 'admin@v3rii.com',
+    password: 'Zugangscode',
+    remember: 'Terminal merken',
+    submit: 'Verbinden',
+    securityNetwork: 'V3RII Sicherheitsnetz © 2026',
+    language: 'Sprache',
+    required: 'E-Mail und Passwort sind erforderlich',
+    companyLoadFailed: 'Firmenliste konnte nicht geladen werden',
+    checking: 'Anmeldung wird geprüft',
+    invalidLogin: 'E-Mail, Passwort oder Firma ist ungültig',
+    companyRequired: 'Firma ist erforderlich',
+    loginFailed: 'Anmeldung fehlgeschlagen',
+    loginSuccess: 'Anmeldung erfolgreich',
+  },
+  fr: {
+    brandSuffix: 'COMMS',
+    heroLine1: 'Centre',
+    heroLine2: 'Relation',
+    heroLine3: 'Client',
+    heroText: 'Vérifiez la société et vos identifiants pour accéder au portail.',
+    serverStatus: 'ÉTAT SERVEUR',
+    online: 'EN LIGNE',
+    securityProtocol: 'SÉCURITÉ',
+    active: 'ACTIF',
+    title: 'Connexion Agent',
+    subtitle: 'Saisissez vos identifiants opérateur.',
+    company: 'Société',
+    companyPlaceholder: 'Super admin / continuer sans société',
+    operator: 'ID opérateur / E-mail',
+    operatorPlaceholder: 'admin@v3rii.com',
+    password: 'Code d’accès',
+    remember: 'Mémoriser le terminal',
+    submit: 'Se connecter',
+    securityNetwork: 'Réseau de sécurité V3RII © 2026',
+    language: 'Langue',
+    required: 'E-mail et mot de passe obligatoires',
+    companyLoadFailed: 'Liste des sociétés indisponible',
+    checking: 'Vérification en cours',
+    invalidLogin: 'E-mail, mot de passe ou société invalide',
+    companyRequired: 'Sélection de société requise',
+    loginFailed: 'Connexion impossible',
+    loginSuccess: 'Connexion réussie',
+  },
+  es: {
+    brandSuffix: 'COMMS',
+    heroLine1: 'Centro',
+    heroLine2: 'de Contacto',
+    heroLine3: 'Cliente',
+    heroText: 'Verifique empresa y usuario para acceder al portal.',
+    serverStatus: 'SERVIDOR',
+    online: 'EN LÍNEA',
+    securityProtocol: 'SEGURIDAD',
+    active: 'ACTIVO',
+    title: 'Acceso Agente',
+    subtitle: 'Ingrese sus credenciales de operador.',
+    company: 'Empresa',
+    companyPlaceholder: 'Super admin / continuar sin empresa',
+    operator: 'ID operador / Email',
+    operatorPlaceholder: 'admin@v3rii.com',
+    password: 'Código de acceso',
+    remember: 'Recordar terminal',
+    submit: 'Conectar',
+    securityNetwork: 'Red de Seguridad V3RII © 2026',
+    language: 'Idioma',
+    required: 'Email y contraseña son obligatorios',
+    companyLoadFailed: 'No se pudo cargar la lista de empresas',
+    checking: 'Verificando acceso',
+    invalidLogin: 'Email, contraseña o empresa inválidos',
+    companyRequired: 'Debe seleccionar empresa',
+    loginFailed: 'No se pudo iniciar sesión',
+    loginSuccess: 'Inicio de sesión correcto',
+  },
+  it: {
+    brandSuffix: 'COMMS',
+    heroLine1: 'Centro',
+    heroLine2: 'Contatto',
+    heroLine3: 'Clienti',
+    heroText: 'Verifica azienda e credenziali per accedere al portale.',
+    serverStatus: 'STATO SERVER',
+    online: 'ONLINE',
+    securityProtocol: 'SICUREZZA',
+    active: 'ATTIVO',
+    title: 'Accesso Agente',
+    subtitle: 'Inserisci le credenziali operatore.',
+    company: 'Azienda',
+    companyPlaceholder: 'Super admin / continua senza azienda',
+    operator: 'ID operatore / Email',
+    operatorPlaceholder: 'admin@v3rii.com',
+    password: 'Codice accesso',
+    remember: 'Ricorda terminale',
+    submit: 'Connetti',
+    securityNetwork: 'Rete Sicurezza V3RII © 2026',
+    language: 'Lingua',
+    required: 'Email e password obbligatorie',
+    companyLoadFailed: 'Elenco aziende non caricato',
+    checking: 'Verifica accesso',
+    invalidLogin: 'Email, password o azienda non validi',
+    companyRequired: 'Selezione azienda obbligatoria',
+    loginFailed: 'Accesso non riuscito',
+    loginSuccess: 'Accesso riuscito',
+  },
+  ar: {
+    brandSuffix: 'COMMS',
+    heroLine1: 'مركز',
+    heroLine2: 'تواصل',
+    heroLine3: 'العملاء',
+    heroText: 'تحقق من الشركة وبيانات المستخدم للوصول إلى البوابة.',
+    serverStatus: 'حالة الخادم',
+    online: 'متصل',
+    securityProtocol: 'بروتوكول الأمان',
+    active: 'نشط',
+    title: 'دخول الوكيل',
+    subtitle: 'أدخل بيانات المشغل للمتابعة.',
+    company: 'الشركة',
+    companyPlaceholder: 'مدير عام / الدخول بدون شركة',
+    operator: 'معرف المشغل / البريد',
+    operatorPlaceholder: 'admin@v3rii.com',
+    password: 'رمز الدخول',
+    remember: 'تذكر الجهاز',
+    submit: 'الاتصال بالنظام',
+    securityNetwork: 'شبكة أمان V3RII © 2026',
+    language: 'اللغة',
+    required: 'البريد وكلمة المرور مطلوبان',
+    companyLoadFailed: 'تعذر تحميل قائمة الشركات',
+    checking: 'جار التحقق',
+    invalidLogin: 'البريد أو كلمة المرور أو الشركة غير صحيحة',
+    companyRequired: 'اختيار الشركة مطلوب',
+    loginFailed: 'فشل تسجيل الدخول',
+    loginSuccess: 'تم تسجيل الدخول',
+  },
+  ru: {
+    brandSuffix: 'COMMS',
+    heroLine1: 'Центр',
+    heroLine2: 'связи',
+    heroLine3: 'клиентов',
+    heroText: 'Подтвердите компанию и учетные данные для доступа.',
+    serverStatus: 'СТАТУС СЕРВЕРА',
+    online: 'ОНЛАЙН',
+    securityProtocol: 'БЕЗОПАСНОСТЬ',
+    active: 'АКТИВНО',
+    title: 'Вход агента',
+    subtitle: 'Введите данные оператора.',
+    company: 'Компания',
+    companyPlaceholder: 'Суперадмин / без компании',
+    operator: 'ID оператора / Email',
+    operatorPlaceholder: 'admin@v3rii.com',
+    password: 'Код доступа',
+    remember: 'Запомнить терминал',
+    submit: 'Подключиться',
+    securityNetwork: 'Сеть безопасности V3RII © 2026',
+    language: 'Язык',
+    required: 'Email и пароль обязательны',
+    companyLoadFailed: 'Не удалось загрузить компании',
+    checking: 'Проверка входа',
+    invalidLogin: 'Неверный email, пароль или компания',
+    companyRequired: 'Выберите компанию',
+    loginFailed: 'Ошибка входа',
+    loginSuccess: 'Вход выполнен',
+  },
+  pt: {
+    brandSuffix: 'COMMS',
+    heroLine1: 'Centro',
+    heroLine2: 'de Contato',
+    heroLine3: 'Cliente',
+    heroText: 'Verifique empresa e credenciais para acessar o portal.',
+    serverStatus: 'STATUS SERVIDOR',
+    online: 'ONLINE',
+    securityProtocol: 'SEGURANÇA',
+    active: 'ATIVO',
+    title: 'Login do Agente',
+    subtitle: 'Informe suas credenciais.',
+    company: 'Empresa',
+    companyPlaceholder: 'Super admin / continuar sem empresa',
+    operator: 'ID operador / Email',
+    operatorPlaceholder: 'admin@v3rii.com',
+    password: 'Código de acesso',
+    remember: 'Lembrar terminal',
+    submit: 'Conectar',
+    securityNetwork: 'Rede de Segurança V3RII © 2026',
+    language: 'Idioma',
+    required: 'Email e senha são obrigatórios',
+    companyLoadFailed: 'Lista de empresas não carregada',
+    checking: 'Verificando acesso',
+    invalidLogin: 'Email, senha ou empresa inválidos',
+    companyRequired: 'Seleção de empresa obrigatória',
+    loginFailed: 'Falha no login',
+    loginSuccess: 'Login realizado',
+  },
+  nl: {
+    brandSuffix: 'COMMS',
+    heroLine1: 'Klant',
+    heroLine2: 'Contact',
+    heroLine3: 'Centrum',
+    heroText: 'Controleer bedrijf en gebruiker om toegang te krijgen.',
+    serverStatus: 'SERVERSTATUS',
+    online: 'ONLINE',
+    securityProtocol: 'BEVEILIGING',
+    active: 'ACTIEF',
+    title: 'Agent Login',
+    subtitle: 'Voer uw operatorgegevens in.',
+    company: 'Bedrijf',
+    companyPlaceholder: 'Super admin / doorgaan zonder bedrijf',
+    operator: 'Operator ID / E-mail',
+    operatorPlaceholder: 'admin@v3rii.com',
+    password: 'Toegangscode',
+    remember: 'Terminal onthouden',
+    submit: 'Verbinden',
+    securityNetwork: 'V3RII Beveiligingsnetwerk © 2026',
+    language: 'Taal',
+    required: 'E-mail en wachtwoord zijn verplicht',
+    companyLoadFailed: 'Bedrijven konden niet geladen worden',
+    checking: 'Login controleren',
+    invalidLogin: 'E-mail, wachtwoord of bedrijf ongeldig',
+    companyRequired: 'Bedrijfselectie verplicht',
+    loginFailed: 'Login mislukt',
+    loginSuccess: 'Login succesvol',
+  },
+};
+
 const emptyCompany = {
   code: '',
   name: '',
@@ -87,6 +423,7 @@ function App() {
   const [decision, setDecision] = useState<DecisionResult | null>(null);
   const [status, setStatus] = useState('Hazır');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [loginLanguage, setLoginLanguage] = useState<LoginLanguageCode>('tr');
   const [exceptionDraft, setExceptionDraft] = useState({
     date: new Date().toISOString().slice(0, 10),
     title: '',
@@ -125,6 +462,7 @@ function App() {
     () => companies.find((company) => company.id === selectedCompanyId) ?? null,
     [companies, selectedCompanyId],
   );
+  const loginText = loginTranslations[loginLanguage];
 
   useEffect(() => {
     const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
@@ -177,7 +515,7 @@ function App() {
       setLoginCompanies(data);
     } catch {
       setLoginCompanies([]);
-      setStatus('Firma listesi yüklenemedi');
+      setStatus(loginText.companyLoadFailed);
     }
   }
 
@@ -185,32 +523,32 @@ function App() {
     event?.preventDefault();
 
     if (!loginDraft.email.trim() || !loginDraft.password.trim()) {
-      setStatus('E-posta ve şifre zorunlu');
+      setStatus(loginText.required);
       return;
     }
 
     let response;
     try {
-      setStatus('Giriş kontrol ediliyor');
+      setStatus(loginText.checking);
       response = await callCenterApi.login({
         email: loginDraft.email,
         password: loginDraft.password,
         companyId: loginDraft.companyId ? Number(loginDraft.companyId) : null,
       });
     } catch {
-      setStatus('E-posta, şifre veya firma seçimi hatalı');
+      setStatus(loginText.invalidLogin);
       return;
     }
 
     if (response.requiresCompanySelection) {
       setLoginCompanies(response.companies);
       setLoginDraft((draft) => ({ ...draft, companyId: draft.companyId || response.companies[0]?.id.toString() || '' }));
-      setStatus(response.message ?? 'Firma seçimi gerekli');
+      setStatus(response.message ?? loginText.companyRequired);
       return;
     }
 
     if (!response.success || !response.token || !response.context) {
-      setStatus(response.message ?? 'Giriş yapılamadı');
+      setStatus(response.message ?? loginText.loginFailed);
       return;
     }
 
@@ -219,7 +557,7 @@ function App() {
     setSelectedCompanyId(response.context.selectedCompanyId ?? response.context.companies[0]?.id ?? null);
     setLoginCompanies([]);
     await refreshCompanies(response.context);
-    setStatus('Giriş başarılı');
+    setStatus(loginText.loginSuccess);
   }
 
   function logout() {
@@ -352,6 +690,20 @@ function App() {
         <SpaceBackground />
         <div className="pointer-events-none fixed left-10 top-10 z-0 hidden h-36 w-36 rounded-full border border-cyan-300/20 shadow-[0_0_80px_rgba(34,211,238,0.16)] md:block" />
         <div className="pointer-events-none fixed bottom-12 right-12 z-0 h-52 w-52 rounded-full border border-fuchsia-400/10 bg-cyan-500/5 blur-sm" />
+        <label className="fixed right-6 top-6 z-20 flex items-center gap-2 rounded-full border border-blue-400/20 bg-[#0b1120]/80 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-300 shadow-[0_0_18px_rgba(0,195,255,0.12)] backdrop-blur-xl">
+          <span>{loginText.language}</span>
+          <select
+            className="login-language-select"
+            value={loginLanguage}
+            onChange={(event) => setLoginLanguage(event.target.value as LoginLanguageCode)}
+          >
+            {loginLanguages.map((language) => (
+              <option key={language.code} value={language.code}>
+                {language.shortLabel} - {language.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <section className="relative z-10 grid w-full max-w-4xl overflow-hidden rounded-2xl border border-blue-400/20 bg-[#0d1124]/70 shadow-[0_0_30px_rgba(0,195,255,0.12)] backdrop-blur-xl md:grid-cols-2">
           <div className="relative hidden overflow-hidden border-r border-blue-400/20 bg-gradient-to-br from-blue-950/45 to-fuchsia-950/35 p-10 md:flex md:min-h-[620px] md:flex-col md:justify-between">
@@ -363,32 +715,32 @@ function App() {
               <div className="mb-8 flex items-center gap-3">
                 <Rocket className="animate-[float_4s_ease-in-out_infinite] text-blue-300 drop-shadow-[0_0_12px_rgba(96,165,250,0.75)]" size={34} />
                 <h2 className="font-mono text-2xl font-bold tracking-[0.24em] text-white">
-                  V3RII<span className="text-blue-300">COMMS</span>
+                  V3RII<span className="text-blue-300">{loginText.brandSuffix}</span>
                 </h2>
               </div>
               <h1 className="text-4xl font-bold leading-tight tracking-wide text-white">
-                Müşteri
+                {loginText.heroLine1}
                 <br />
-                İletişim
+                {loginText.heroLine2}
                 <br />
-                <span className="bg-gradient-to-r from-blue-300 to-fuchsia-400 bg-clip-text text-transparent">Merkezi</span>
+                <span className="bg-gradient-to-r from-blue-300 to-fuchsia-400 bg-clip-text text-transparent">{loginText.heroLine3}</span>
               </h1>
               <p className="mt-5 max-w-xs text-sm leading-6 text-slate-400">
-                Temsilci ve yönetici portalına erişmek için firma ve kullanıcı bilgilerinizi doğrulayın.
+                {loginText.heroText}
               </p>
             </div>
 
             <div className="relative z-10 space-y-3 font-mono text-xs">
               <div className="flex items-center justify-between rounded border border-slate-600/50 bg-black/30 p-2">
-                <span className="text-slate-400">SUNUCU DURUMU</span>
+                <span className="text-slate-400">{loginText.serverStatus}</span>
                 <span className="flex items-center text-emerald-300">
                   <span className="mr-2 h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
-                  ÇEVRİMİÇİ
+                  {loginText.online}
                 </span>
               </div>
               <div className="flex items-center justify-between rounded border border-slate-600/50 bg-black/30 p-2">
-                <span className="text-slate-400">GÜVENLİK PROTOKOLÜ</span>
-                <span className="text-blue-300">AKTİF</span>
+                <span className="text-slate-400">{loginText.securityProtocol}</span>
+                <span className="text-blue-300">{loginText.active}</span>
               </div>
             </div>
           </div>
@@ -397,41 +749,41 @@ function App() {
             <div className="mb-8 flex items-center justify-center gap-2 md:hidden">
               <Rocket className="animate-[float_4s_ease-in-out_infinite] text-blue-300" size={26} />
               <h2 className="font-mono text-xl font-bold tracking-[0.22em] text-white">
-                V3RII<span className="text-blue-300">COMMS</span>
+                V3RII<span className="text-blue-300">{loginText.brandSuffix}</span>
               </h2>
             </div>
 
-            <h3 className="font-mono text-2xl font-semibold text-white drop-shadow-[0_0_12px_rgba(0,195,255,0.35)]">Temsilci Girişi</h3>
-            <p className="mb-8 mt-2 text-sm text-slate-400">Devam etmek için operatör bilgilerinizi giriniz.</p>
+            <h3 className="font-mono text-2xl font-semibold text-white drop-shadow-[0_0_12px_rgba(0,195,255,0.35)]">{loginText.title}</h3>
+            <p className="mb-8 mt-2 text-sm text-slate-400">{loginText.subtitle}</p>
 
             <form className="space-y-5" onSubmit={(event) => void login(event)}>
-              <LoginField icon={<Building2 size={17} />} label="Firma">
+              <LoginField icon={<Building2 size={17} />} label={loginText.company}>
                 <select
-                  className="w-full appearance-none rounded-lg bg-transparent px-10 py-3 text-sm text-white outline-none"
+                  className="login-control"
                   value={loginDraft.companyId}
                   onChange={(event) => setLoginDraft({ ...loginDraft, companyId: event.target.value })}
                 >
-                  <option className="bg-[#0b1120]" value="">Super admin / firma seçmeden giriş</option>
+                  <option value="">{loginText.companyPlaceholder}</option>
                   {loginCompanies.map((company) => (
-                    <option className="bg-[#0b1120]" key={company.id} value={company.id}>
+                    <option key={company.id} value={company.id}>
                       {company.name}
                     </option>
                   ))}
                 </select>
               </LoginField>
 
-              <LoginField icon={<UserRound size={17} />} label="Operatör ID / E-posta">
+              <LoginField icon={<UserRound size={17} />} label={loginText.operator}>
                 <input
-                  className="w-full rounded-lg bg-transparent px-10 py-3 text-sm text-white outline-none placeholder:text-slate-600"
-                  placeholder="admin@v3rii.com"
+                  className="login-control"
+                  placeholder={loginText.operatorPlaceholder}
                   value={loginDraft.email}
                   onChange={(event) => setLoginDraft({ ...loginDraft, email: event.target.value })}
                 />
               </LoginField>
 
-              <LoginField icon={<Lock size={17} />} label="Erişim Kodu">
+              <LoginField icon={<Lock size={17} />} label={loginText.password}>
                 <input
-                  className="w-full rounded-lg bg-transparent px-10 py-3 pr-12 text-sm text-white outline-none placeholder:text-slate-600"
+                  className="login-control login-control-password"
                   placeholder="••••••••"
                   type={isPasswordVisible ? 'text' : 'password'}
                   value={loginDraft.password}
@@ -448,15 +800,15 @@ function App() {
               </LoginField>
 
               <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-400">
-                <input className="h-4 w-4 rounded border-slate-600 bg-[#131b2f] accent-blue-500" type="checkbox" />
-                Terminali hatırla
+                <input className="login-checkbox" type="checkbox" />
+                <span className="select-none">{loginText.remember}</span>
               </label>
 
               <button
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-[linear-gradient(90deg,#1e3c72_0%,#2a5298_55%,#00c3ff_120%)] bg-[length:200%_auto] py-3 font-mono text-sm font-bold uppercase tracking-wider text-white transition-all duration-500 hover:bg-right hover:shadow-[0_0_22px_rgba(0,195,255,0.58)]"
                 type="submit"
               >
-                <span>Sisteme Bağlan</span>
+                <span>{loginText.submit}</span>
                 <LogIn size={17} />
               </button>
             </form>
@@ -467,7 +819,7 @@ function App() {
 
             <div className="mt-12 text-center">
               <p className="inline-flex items-center gap-1 font-mono text-xs text-slate-500">
-                <ShieldCheck size={13} /> V3RII Güvenlik Ağı © 2026
+                <ShieldCheck size={13} /> {loginText.securityNetwork}
               </p>
             </div>
           </div>
