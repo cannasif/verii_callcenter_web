@@ -66,6 +66,7 @@ const loginLanguages = [
 
 type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
+type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'rules' | 'simulator' | 'logs';
 
 const loginTranslations: Record<LoginLanguageCode, {
   brandSuffix: string;
@@ -419,11 +420,23 @@ const emptyCompany = {
   isActive: true,
 };
 
+function authCompaniesToCompanies(items: AuthCompany[]): Company[] {
+  return items.map((item) => ({
+    ...emptyCompany,
+    id: item.id,
+    code: item.code,
+    name: item.name,
+  }));
+}
+
 function App() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [authContext, setAuthContext] = useState<AuthContext | null>(null);
   const [loginCompanies, setLoginCompanies] = useState<AuthCompany[]>([]);
   const [isLoginCompaniesLoading, setIsLoginCompaniesLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState<WorkspaceSection>('company');
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
   const [loginDraft, setLoginDraft] = useState({
     email: 'admin@v3rii.com',
     password: '',
@@ -498,6 +511,19 @@ function App() {
     })),
     [],
   );
+  const workspaceSections = useMemo(
+    () => [
+      { id: 'company' as const, title: 'Firma Bilgileri', description: 'Ana firma kartı ve yasal bilgiler', icon: <Building2 size={16} /> },
+      { id: 'hours' as const, title: 'Haftalık Saat Tanımı', description: 'Gün bazlı açık/kapalı saatler', icon: <Clock3 size={16} /> },
+      { id: 'exceptions' as const, title: 'Özel Günler', description: 'Tatil, yarım gün ve kapalı günler', icon: <CalendarDays size={16} /> },
+      { id: 'departments' as const, title: 'Departmanlar', description: 'Kuyruk ve ekip tanımları', icon: <Headphones size={16} /> },
+      { id: 'rules' as const, title: 'Yönlendirme Kuralları', description: 'AI, canlı aktarım ve aksiyonlar', icon: <GitBranch size={16} /> },
+      { id: 'simulator' as const, title: 'Karar Simülasyonu', description: 'Kural sonucunu test et', icon: <Play size={16} /> },
+      { id: 'logs' as const, title: 'Konuşma Logları', description: 'Çağrı karar kayıtları', icon: <History size={16} /> },
+    ],
+    [],
+  );
+  const activeWorkspaceSection = workspaceSections.find((section) => section.id === activeSection) ?? workspaceSections[0];
 
   useEffect(() => {
     const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
@@ -512,6 +538,19 @@ function App() {
     if (!selectedCompanyId) return;
     void refreshCompanyData(selectedCompanyId);
   }, [selectedCompanyId]);
+
+  useEffect(() => {
+    if (!isUserMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!userMenuRef.current?.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [isUserMenuOpen]);
 
   useEffect(() => {
     if (!selectedCompany) return;
@@ -566,6 +605,7 @@ function App() {
     }
 
     let response;
+    const loginStartedAt = performance.now();
     try {
       setStatus(loginText.checking);
       response = await callCenterApi.login({
@@ -593,9 +633,10 @@ function App() {
     localStorage.setItem('access_token', response.token);
     setAuthContext(response.context);
     setSelectedCompanyId(response.context.selectedCompanyId ?? response.context.companies[0]?.id ?? null);
+    setCompanies(authCompaniesToCompanies(response.context.companies));
     setLoginCompanies([]);
-    await refreshCompanies(response.context);
-    setStatus(loginText.loginSuccess);
+    setStatus(`${loginText.loginSuccess} (${Math.round(performance.now() - loginStartedAt)} ms)`);
+    void refreshCompanies(response.context, true);
   }
 
   function logout() {
@@ -613,12 +654,16 @@ function App() {
     setStatus('Çıkış yapıldı');
   }
 
-  async function refreshCompanies(context = authContext) {
-    setStatus('Firmalar yükleniyor');
+  async function refreshCompanies(context = authContext, silent = false) {
+    if (!silent) {
+      setStatus('Firmalar yükleniyor');
+    }
     const data = await callCenterApi.companies();
     setCompanies(data);
     setSelectedCompanyId((current) => current ?? context?.selectedCompanyId ?? data[0]?.id ?? null);
-    setStatus('Hazır');
+    if (!silent) {
+      setStatus('Hazır');
+    }
   }
 
   async function refreshCompanyData(companyId: number) {
@@ -899,11 +944,25 @@ function App() {
           <span>{authContext?.isSuperAdmin ? 'Süper admin' : 'Firma admini'}</span>
         </div>
 
-        <button className="logout-button" type="button" onClick={logout}>
-          <LogOut size={16} /> Çıkış
-        </button>
+        <nav className="module-list" aria-label="Call center modülleri">
+          {workspaceSections.map((section) => (
+            <button
+              className={activeSection === section.id ? 'module-item active' : 'module-item'}
+              key={section.id}
+              type="button"
+              onClick={() => setActiveSection(section.id)}
+            >
+              {section.icon}
+              <span>
+                <strong>{section.title}</strong>
+                <small>{section.description}</small>
+              </span>
+            </button>
+          ))}
+        </nav>
 
         <div className="company-list">
+          <span className="sidebar-label">Firmalar</span>
           {companies.map((company) => (
             <button
               className={company.id === selectedCompanyId ? 'company-item active' : 'company-item'}
@@ -917,22 +976,60 @@ function App() {
             </button>
           ))}
         </div>
+
+        <button className="logout-button" type="button" onClick={logout}>
+          <LogOut size={16} /> Çıkış
+        </button>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
           <div>
-            <h1>Kural Tanımları</h1>
-            <p>Firma bazında mesai, özel gün, departman ve yönlendirme kararlarını yönetin.</p>
+            <h1>{activeWorkspaceSection.title}</h1>
+            <p>{activeWorkspaceSection.description}</p>
           </div>
-          <div className="status-pill">
-            <RefreshCw size={14} />
-            {status}
+          <div className="topbar-actions">
+            <div className="status-pill">
+              <RefreshCw size={14} />
+              {status}
+            </div>
+            <div className="user-menu" ref={userMenuRef}>
+              <button className="user-menu-button" type="button" onClick={() => setIsUserMenuOpen((value) => !value)}>
+                <UserRound size={16} />
+                <span>
+                  <strong>{authContext.displayName}</strong>
+                  <small>{selectedCompany?.name ?? (authContext.isSuperAdmin ? 'Super admin / firma seçilmedi' : 'Firma seçilmedi')}</small>
+                </span>
+                <ChevronDown size={15} />
+              </button>
+              {isUserMenuOpen && (
+                <div className="user-menu-panel">
+                  <div>
+                    <span>Kullanıcı</span>
+                    <strong>{authContext.displayName}</strong>
+                    <small>{authContext.email}</small>
+                  </div>
+                  <div>
+                    <span>Yetki</span>
+                    <strong>{authContext.isSuperAdmin ? 'Süper admin' : 'Firma admini'}</strong>
+                    <small>{authContext.isSuperAdmin ? 'Firma seçmeden giriş yapabilir' : 'Firma bazlı işlem yapar'}</small>
+                  </div>
+                  <div>
+                    <span>Firma</span>
+                    <strong>{selectedCompany?.name ?? 'Firma seçilmedi'}</strong>
+                    <small>{selectedCompany ? `${selectedCompany.code} · ${selectedCompany.companyType}` : 'Sol menüden firma seçilebilir'}</small>
+                  </div>
+                  <button className="logout-button compact" type="button" onClick={logout}>
+                    <LogOut size={15} /> Çıkış yap
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
         <div className="grid">
-          <section className="panel company-panel">
+          {activeSection === 'company' && <section className="panel company-panel">
             <PanelTitle icon={<Building2 size={18} />} title="Firma Tanımı" />
             {!authContext?.isSuperAdmin && (
               <div className="notice">Firma tanımlama ve firma ana bilgileri sadece süper admin tarafından yönetilir.</div>
@@ -1001,9 +1098,9 @@ function App() {
                 <Save size={16} /> Firmayı kaydet
               </button>
             )}
-          </section>
+          </section>}
 
-          <section className="panel">
+          {activeSection === 'hours' && <section className="panel company-panel">
             <PanelTitle icon={<Clock3 size={18} />} title="Haftalık Çalışma Saatleri" />
             <div className="hours-list">
               {dayLabels.map((label, dayIndex) => {
@@ -1035,9 +1132,9 @@ function App() {
                 );
               })}
             </div>
-          </section>
+          </section>}
 
-          <section className="panel">
+          {activeSection === 'exceptions' && <section className="panel company-panel">
             <PanelTitle icon={<CalendarDays size={18} />} title="Özel Gün / İstisna" />
             <div className="form-grid two compact">
               <Field label="Tarih">
@@ -1070,10 +1167,10 @@ function App() {
                 </div>
               ))}
             </div>
-          </section>
+          </section>}
 
-          <section className="panel">
-            <PanelTitle icon={<GitBranch size={18} />} title="Departman ve Kurallar" />
+          {activeSection === 'departments' && <section className="panel company-panel">
+            <PanelTitle icon={<Headphones size={18} />} title="Departmanlar" />
             <div className="inline-form">
               <input placeholder="Kod" value={departmentDraft.code} onChange={(event) => setDepartmentDraft({ ...departmentDraft, code: event.target.value })} />
               <input placeholder="Departman adı" value={departmentDraft.name} onChange={(event) => setDepartmentDraft({ ...departmentDraft, name: event.target.value })} />
@@ -1085,6 +1182,10 @@ function App() {
                 <span className="chip" key={department.id}>{department.name}</span>
               ))}
             </div>
+          </section>}
+
+          {activeSection === 'rules' && <section className="panel company-panel">
+            <PanelTitle icon={<GitBranch size={18} />} title="Yönlendirme Kuralları" />
             <div className="rule-builder">
               <input placeholder="Kural adı" value={ruleDraft.name} onChange={(event) => setRuleDraft({ ...ruleDraft, name: event.target.value })} />
               <input placeholder="Intent ör: reservation" value={ruleDraft.matchIntent} onChange={(event) => setRuleDraft({ ...ruleDraft, matchIntent: event.target.value })} />
@@ -1113,9 +1214,9 @@ function App() {
                 </div>
               ))}
             </div>
-          </section>
+          </section>}
 
-          <section className="panel simulator">
+          {activeSection === 'simulator' && <section className="panel company-panel simulator">
             <PanelTitle icon={<Play size={18} />} title="Karar Simülasyonu" />
             <div className="form-grid two compact">
               <Field label="Tarih/saat">
@@ -1145,9 +1246,9 @@ function App() {
                 <small>{decision.decisionReason}</small>
               </div>
             )}
-          </section>
+          </section>}
 
-          <section className="panel logs-panel">
+          {activeSection === 'logs' && <section className="panel logs-panel">
             <PanelTitle icon={<History size={18} />} title="Konuşma Logları" />
             <div className="table-list log-list">
               {logs.map((log) => (
@@ -1158,7 +1259,7 @@ function App() {
                 </div>
               ))}
             </div>
-          </section>
+          </section>}
         </div>
       </section>
     </main>
