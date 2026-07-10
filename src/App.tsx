@@ -16,6 +16,10 @@ import {
   Lock,
   LogIn,
   LogOut,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
@@ -24,8 +28,10 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   UserRound,
+  X,
 } from 'lucide-react';
 import './App.css';
+import { PagedGrid, type PagedGridColumn } from './components/PagedGrid';
 import {
   callCenterApi,
   type AuthContext,
@@ -40,6 +46,8 @@ import {
   type Department,
   type LegacyCompanyRole,
   type PermissionDefinition,
+  type PagedRequest,
+  type PagedResponse,
   type RoutingAction,
   type RoutingRule,
 } from './api';
@@ -453,6 +461,18 @@ function authCompaniesToCompanies(items: AuthCompany[]): Company[] {
   }));
 }
 
+function emptyPage<T>(request: PagedRequest): Promise<PagedResponse<T>> {
+  return Promise.resolve({
+    items: [],
+    totalCount: 0,
+    pageNumber: request.pageNumber,
+    pageSize: request.pageSize,
+    totalPages: 0,
+    hasPreviousPage: false,
+    hasNextPage: false,
+  });
+}
+
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -476,15 +496,16 @@ function App() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [companyDraft, setCompanyDraft] = useState(emptyCompany);
   const [businessHours, setBusinessHours] = useState<BusinessHour[]>([]);
-  const [exceptions, setExceptions] = useState<CalendarException[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [rules, setRules] = useState<RoutingRule[]>([]);
-  const [logs, setLogs] = useState<ConversationLog[]>([]);
   const [permissions, setPermissions] = useState<PermissionDefinition[]>([]);
   const [companyRoles, setCompanyRoles] = useState<CompanyRole[]>([]);
-  const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
   const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
   const [editingUserAssignmentId, setEditingUserAssignmentId] = useState<number | null>(null);
+  const [isRoleFormOpen, setIsRoleFormOpen] = useState(false);
+  const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  const [gridRefreshVersion, setGridRefreshVersion] = useState(0);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [decision, setDecision] = useState<DecisionResult | null>(null);
   const [status, setStatus] = useState('Hazır');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -595,6 +616,44 @@ function App() {
     [],
   );
   const activeWorkspaceSection = workspaceSections.find((section) => section.id === activeSection) ?? workspaceSections[0] ?? allWorkspaceSections[0];
+  const exceptionGridColumns = useMemo<PagedGridColumn<CalendarException>[]>(() => [
+    { key: 'date', label: 'Tarih', sortKey: 'Date', width: '120px', render: (row) => new Date(`${row.date}T00:00:00`).toLocaleDateString('tr-TR') },
+    { key: 'title', label: 'Başlık', sortKey: 'Title', render: (row) => <strong>{row.title}</strong> },
+    { key: 'status', label: 'Durum', sortKey: 'IsClosed', width: '120px', render: (row) => <span className={row.isClosed ? 'data-badge closed' : 'data-badge open'}>{row.isClosed ? 'Kapalı' : 'Özel saat'}</span> },
+    { key: 'hours', label: 'Saat', width: '130px', render: (row) => row.isClosed ? '-' : `${row.openTime?.slice(0, 5)} - ${row.closeTime?.slice(0, 5)}` },
+  ], []);
+  const departmentGridColumns = useMemo<PagedGridColumn<Department>[]>(() => [
+    { key: 'code', label: 'Kod', sortKey: 'Code', width: '110px', render: (row) => <span className="mono-cell">{row.code}</span> },
+    { key: 'name', label: 'Departman / Kuyruk', sortKey: 'Name', render: (row) => <strong>{row.name}</strong> },
+    { key: 'language', label: 'Dil', sortKey: 'LanguageCode', width: '100px', render: (row) => row.languageCode ?? '-' },
+    { key: 'status', label: 'Durum', sortKey: 'IsActive', width: '110px', render: (row) => <span className={row.isActive ? 'data-badge active' : 'data-badge'}>{row.isActive ? 'Aktif' : 'Pasif'}</span> },
+  ], []);
+  const ruleGridColumns = useMemo<PagedGridColumn<RoutingRule>[]>(() => [
+    { key: 'priority', label: 'Öncelik', sortKey: 'Priority', width: '90px', render: (row) => <span className="mono-cell">#{row.priority}</span> },
+    { key: 'name', label: 'Kural', sortKey: 'Name', render: (row) => <strong>{row.name}</strong> },
+    { key: 'intent', label: 'Intent', width: '130px', render: (row) => row.matchIntent ?? '-' },
+    { key: 'action', label: 'Aksiyon', sortKey: 'Action', width: '160px', render: (row) => <span className="data-badge info">{actionLabels[String(row.action)] ?? String(row.action)}</span> },
+    { key: 'status', label: 'Durum', sortKey: 'IsActive', width: '100px', render: (row) => <span className={row.isActive ? 'data-badge active' : 'data-badge'}>{row.isActive ? 'Aktif' : 'Pasif'}</span> },
+  ], []);
+  const logGridColumns = useMemo<PagedGridColumn<ConversationLog>[]>(() => [
+    { key: 'started', label: 'Başlangıç', sortKey: 'StartedAtUtc', width: '170px', render: (row) => new Date(row.startedAtUtc).toLocaleString('tr-TR') },
+    { key: 'channel', label: 'Kanal', sortKey: 'Channel', width: '90px', render: (row) => row.channel },
+    { key: 'intent', label: 'Intent', sortKey: 'Intent', width: '130px', render: (row) => row.intent ?? '-' },
+    { key: 'decision', label: 'Karar', sortKey: 'Decision', width: '150px', render: (row) => <span className="data-badge info">{row.decision}</span> },
+    { key: 'reason', label: 'Karar nedeni', render: (row) => row.decisionReason ?? '-' },
+  ], []);
+  const userGridColumns = useMemo<PagedGridColumn<CompanyUser>[]>(() => [
+    { key: 'user', label: 'Kullanıcı', sortKey: 'DisplayName', render: (row) => <span className="primary-cell"><strong>{row.displayName}</strong><small>{row.email}</small></span> },
+    { key: 'role', label: 'Firma rolü', sortKey: 'Role', width: '180px', render: (row) => row.companyRoleName ?? row.legacyRole },
+    { key: 'task', label: 'Görev tipi', width: '130px', render: (row) => row.legacyRole },
+    { key: 'status', label: 'Durum', sortKey: 'IsActive', width: '120px', render: (row) => <span className={row.isUserActive && row.isAssignmentActive ? 'data-badge active' : 'data-badge'}>{row.isUserActive && row.isAssignmentActive ? 'Aktif' : 'Pasif'}</span> },
+  ], []);
+  const roleGridColumns = useMemo<PagedGridColumn<CompanyRole>[]>(() => [
+    { key: 'role', label: 'Rol', sortKey: 'Name', render: (row) => <span className="primary-cell"><strong>{row.name}</strong><small>{row.code}</small></span> },
+    { key: 'permissions', label: 'İzin', width: '90px', align: 'center', render: (row) => <span className="data-count">{row.permissionCodes.length}</span> },
+    { key: 'type', label: 'Tip', sortKey: 'IsSystemRole', width: '120px', render: (row) => row.isSystemRole ? 'Sistem rolü' : 'Firma rolü' },
+    { key: 'status', label: 'Durum', sortKey: 'IsActive', width: '100px', render: (row) => <span className={row.isActive ? 'data-badge active' : 'data-badge'}>{row.isActive ? 'Aktif' : 'Pasif'}</span> },
+  ], []);
 
   function selectWorkspaceSection(section: WorkspaceSection) {
     const definition = workspaceSections.find((item) => item.id === section);
@@ -602,6 +661,7 @@ function App() {
       setExpandedWorkspaceGroups((groups) => ({ ...groups, [definition.group]: true }));
     }
     navigate(workspacePaths[section]);
+    setIsMobileSidebarOpen(false);
   }
 
   useEffect(() => {
@@ -632,6 +692,10 @@ function App() {
       navigate(workspacePaths[firstSection.id], { replace: true });
     }
   }, [activeSection, authContext, navigate, workspaceSections]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [activeSection, authContext?.userId]);
 
   useEffect(() => {
     if (!isUserMenuOpen) return;
@@ -727,13 +791,9 @@ function App() {
     setCompanies([]);
     setSelectedCompanyId(null);
     setBusinessHours([]);
-    setExceptions([]);
     setDepartments([]);
-    setRules([]);
-    setLogs([]);
     setPermissions([]);
     setCompanyRoles([]);
-    setCompanyUsers([]);
     setDecision(null);
     setStatus('Çıkış yapıldı');
   }
@@ -753,24 +813,16 @@ function App() {
   async function refreshCompanyData(companyId: number, context = authContext) {
     setStatus('Firma kuralları yükleniyor');
     const can = (permission: string) => context?.isSuperAdmin || context?.permissionCodes?.includes(permission);
-    const [hoursData, exceptionData, departmentData, ruleData, logData, permissionData, roleData, userData] = await Promise.all([
+    const [hoursData, departmentData, permissionData, roleData] = await Promise.all([
       can('calendar.view') ? callCenterApi.businessHours(companyId) : Promise.resolve([]),
-      can('calendar.view') ? callCenterApi.calendarExceptions(companyId) : Promise.resolve([]),
       can('departments.view') ? callCenterApi.departments(companyId) : Promise.resolve([]),
-      can('routing.view') ? callCenterApi.routingRules(companyId) : Promise.resolve([]),
-      can('logs.view') ? callCenterApi.logs(companyId) : Promise.resolve([]),
       can('roles.view') ? callCenterApi.permissions(companyId) : Promise.resolve([]),
       can('roles.view') ? callCenterApi.companyRoles(companyId) : Promise.resolve([]),
-      can('users.view') ? callCenterApi.companyUsers(companyId) : Promise.resolve([]),
     ]);
     setBusinessHours(hoursData);
-    setExceptions(exceptionData);
     setDepartments(departmentData);
-    setRules(ruleData);
-    setLogs(logData);
     setPermissions(permissionData);
     setCompanyRoles(roleData);
-    setCompanyUsers(userData);
     setStatus('Hazır');
   }
 
@@ -779,6 +831,7 @@ function App() {
     const context = await callCenterApi.authContext(companyId);
     setAuthContext(context);
     setSelectedCompanyId(companyId);
+    setIsMobileSidebarOpen(false);
   }
 
   async function saveCompany() {
@@ -814,12 +867,12 @@ function App() {
 
   async function createException() {
     if (!selectedCompanyId || !exceptionDraft.title.trim()) return;
-    const created = await callCenterApi.createCalendarException(selectedCompanyId, {
+    await callCenterApi.createCalendarException(selectedCompanyId, {
       ...exceptionDraft,
       openTime: exceptionDraft.isClosed ? null : exceptionDraft.openTime,
       closeTime: exceptionDraft.isClosed ? null : exceptionDraft.closeTime,
     });
-    setExceptions((items) => [created, ...items]);
+    setGridRefreshVersion((version) => version + 1);
     setExceptionDraft((draft) => ({ ...draft, title: '', messageOverride: '' }));
   }
 
@@ -830,12 +883,13 @@ function App() {
       languageCode: departmentDraft.languageCode || null,
     });
     setDepartments((items) => [...items, created]);
+    setGridRefreshVersion((version) => version + 1);
     setDepartmentDraft({ code: '', name: '', languageCode: '', isActive: true });
   }
 
   async function createRule() {
     if (!selectedCompanyId || !ruleDraft.name.trim()) return;
-    const created = await callCenterApi.createRoutingRule(selectedCompanyId, {
+    await callCenterApi.createRoutingRule(selectedCompanyId, {
       ...ruleDraft,
       action: ruleDraft.action as RoutingAction,
       targetDepartmentId: ruleDraft.targetDepartmentId ? Number(ruleDraft.targetDepartmentId) : null,
@@ -843,7 +897,7 @@ function App() {
       matchLanguageCode: ruleDraft.matchLanguageCode || null,
       message: ruleDraft.message || null,
     });
-    setRules((items) => [...items, created].sort((a, b) => a.priority - b.priority));
+    setGridRefreshVersion((version) => version + 1);
     setRuleDraft((draft) => ({ ...draft, name: '', matchIntent: '', message: '' }));
   }
 
@@ -856,6 +910,7 @@ function App() {
       isActive: role.isActive,
       permissionCodes: role.permissionCodes,
     });
+    setIsRoleFormOpen(true);
   }
 
   function resetRoleDraft() {
@@ -886,7 +941,9 @@ function App() {
       ? await callCenterApi.updateCompanyRole(selectedCompanyId, editingRoleId, payload)
       : await callCenterApi.createCompanyRole(selectedCompanyId, payload);
     setCompanyRoles((items) => [...items.filter((item) => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name, 'tr')));
+    setGridRefreshVersion((version) => version + 1);
     resetRoleDraft();
+    setIsRoleFormOpen(false);
     setStatus('Rol kaydedildi');
   }
 
@@ -901,6 +958,7 @@ function App() {
       isUserActive: user.isUserActive,
       isAssignmentActive: user.isAssignmentActive,
     });
+    setIsUserFormOpen(true);
   }
 
   function resetUserDraft() {
@@ -920,16 +978,17 @@ function App() {
     if (!selectedCompanyId || !userDraft.email.trim() || !userDraft.displayName.trim()) return;
     setStatus(editingUserAssignmentId ? 'Kullanıcı güncelleniyor' : 'Kullanıcı oluşturuluyor');
     const companyRoleId = userDraft.companyRoleId ? Number(userDraft.companyRoleId) : null;
-    const saved = editingUserAssignmentId
-      ? await callCenterApi.updateCompanyUser(selectedCompanyId, editingUserAssignmentId, {
+    if (editingUserAssignmentId) {
+      await callCenterApi.updateCompanyUser(selectedCompanyId, editingUserAssignmentId, {
           displayName: userDraft.displayName,
           password: userDraft.password || undefined,
           companyRoleId,
           legacyRole: userDraft.legacyRole,
           isUserActive: userDraft.isUserActive,
           isAssignmentActive: userDraft.isAssignmentActive,
-        })
-      : await callCenterApi.createCompanyUser(selectedCompanyId, {
+        });
+    } else {
+      await callCenterApi.createCompanyUser(selectedCompanyId, {
           email: userDraft.email,
           displayName: userDraft.displayName,
           password: userDraft.password || undefined,
@@ -937,9 +996,10 @@ function App() {
           legacyRole: userDraft.legacyRole,
           isActive: userDraft.isUserActive && userDraft.isAssignmentActive,
         });
-    setCompanyUsers((items) => [...items.filter((item) => item.assignmentId !== saved.assignmentId), saved]
-      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'tr')));
+    }
+    setGridRefreshVersion((version) => version + 1);
     resetUserDraft();
+    setIsUserFormOpen(false);
     setStatus('Kullanıcı kaydedildi');
   }
 
@@ -956,7 +1016,7 @@ function App() {
     });
     setDecision(result);
     if (simulationDraft.writeLog) {
-      setLogs(await callCenterApi.logs(selectedCompanyId));
+      setGridRefreshVersion((version) => version + 1);
     }
     setStatus('Simülasyon tamamlandı');
   }
@@ -1114,14 +1174,30 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell${isSidebarCollapsed ? ' sidebar-collapsed' : ''}${isMobileSidebarOpen ? ' mobile-nav-open' : ''}`}>
       <aside className="sidebar">
         <div className="brand">
           <Headphones size={24} />
-          <div>
+          <div className="brand-copy">
             <strong>V3RII Call Center</strong>
             <span>Rule admin</span>
           </div>
+          <button
+            aria-label={isSidebarCollapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
+            className="sidebar-toggle"
+            type="button"
+            onClick={() => setIsSidebarCollapsed((value) => !value)}
+          >
+            {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+          </button>
+          <button
+            aria-label={isMobileSidebarOpen ? 'Mobil menüyü kapat' : 'Mobil menüyü aç'}
+            className="mobile-sidebar-toggle"
+            type="button"
+            onClick={() => setIsMobileSidebarOpen((value) => !value)}
+          >
+            {isMobileSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
         </div>
 
         {authContext?.isSuperAdmin && (
@@ -1129,7 +1205,7 @@ function App() {
             setSelectedCompanyId(null);
             setCompanyDraft(emptyCompany);
           }}>
-            <Plus size={16} /> Yeni firma
+            <Plus size={16} /> <span>Yeni firma</span>
           </button>
         )}
 
@@ -1151,7 +1227,13 @@ function App() {
                   aria-expanded={isExpanded}
                   className={groupHasActiveSection ? 'module-group-trigger active' : 'module-group-trigger'}
                   type="button"
-                  onClick={() => setExpandedWorkspaceGroups((groups) => ({ ...groups, [group.id]: !groups[group.id] }))}
+                  onClick={() => {
+                    if (isSidebarCollapsed) {
+                      setIsSidebarCollapsed(false);
+                    } else {
+                      setExpandedWorkspaceGroups((groups) => ({ ...groups, [group.id]: !groups[group.id] }));
+                    }
+                  }}
                 >
                   <span className="module-group-title">
                     {group.icon}
@@ -1159,7 +1241,7 @@ function App() {
                   </span>
                   {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </button>
-                {isExpanded && (
+                {isExpanded && !isSidebarCollapsed && (
                   <div className="module-group-content">
                     {groupSections.map((section) => (
                       <button
@@ -1206,13 +1288,18 @@ function App() {
         </div>
 
         <button className="logout-button" type="button" onClick={logout}>
-          <LogOut size={16} /> Çıkış
+          <LogOut size={16} /> <span>Çıkış</span>
         </button>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
-          <div>
+          <div className="page-heading">
+            <div className="page-breadcrumb">
+              <span>Call Center</span>
+              <ChevronRight size={13} />
+              <strong>{workspaceGroups.find((group) => group.id === activeWorkspaceSection.group)?.title}</strong>
+            </div>
             <h1>{activeWorkspaceSection.title}</h1>
             <p>{activeWorkspaceSection.description}</p>
           </div>
@@ -1389,15 +1476,15 @@ function App() {
               <Plus size={16} /> İstisna ekle
             </button>
             </>}
-            <div className="table-list">
-              {exceptions.map((item) => (
-                <div className="list-row" key={item.id}>
-                  <span>{item.date}</span>
-                  <strong>{item.title}</strong>
-                  <small>{item.isClosed ? 'Kapalı' : `${item.openTime} - ${item.closeTime}`}</small>
-                </div>
-              ))}
-            </div>
+            <PagedGrid
+              columns={exceptionGridColumns}
+              defaultSortBy="Date"
+              emptyText="Özel gün veya çalışma istisnası bulunmuyor."
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryCalendarExceptions(selectedCompanyId, request) : emptyPage(request)}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              rowKey={(row) => row.id}
+              searchPlaceholder="Özel günlerde ara..."
+            />
           </section>}
 
           {activeSection === 'departments' && <section className="panel company-panel">
@@ -1410,11 +1497,16 @@ function App() {
               <button type="button" onClick={createDepartment}><Plus size={15} /></button>
             </div>
             )}
-            <div className="chip-row">
-              {departments.map((department) => (
-                <span className="chip" key={department.id}>{department.name}</span>
-              ))}
-            </div>
+            <PagedGrid
+              columns={departmentGridColumns}
+              defaultSortBy="Name"
+              defaultSortDirection="asc"
+              emptyText="Departman veya kuyruk tanımı bulunmuyor."
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryDepartments(selectedCompanyId, request) : emptyPage(request)}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              rowKey={(row) => row.id}
+              searchPlaceholder="Departman ve kuyruklarda ara..."
+            />
           </section>}
 
           {activeSection === 'rules' && <section className="panel company-panel">
@@ -1440,164 +1532,72 @@ function App() {
               <button type="button" onClick={createRule}><Plus size={15} /> Kural ekle</button>
             </div>
             )}
-            <div className="table-list">
-              {rules.map((rule) => (
-                <div className="list-row rule-row" key={rule.id}>
-                  <span>#{rule.priority}</span>
-                  <strong>{rule.name}</strong>
-                  <small>{actionLabels[String(rule.action)] ?? String(rule.action)}</small>
-                </div>
-              ))}
-            </div>
+            <PagedGrid
+              columns={ruleGridColumns}
+              defaultSortBy="Priority"
+              defaultSortDirection="asc"
+              emptyText="Yönlendirme kuralı bulunmuyor."
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryRoutingRules(selectedCompanyId, request) : emptyPage(request)}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              rowKey={(row) => row.id}
+              searchPlaceholder="Kurallarda, intent veya mesajda ara..."
+            />
           </section>}
 
           {activeSection === 'users' && <section className="panel company-panel">
-            <PanelTitle icon={<UserRound size={18} />} title="Firma Kullanıcıları" />
-            <div className="definition-layout">
-              <div className="definition-form">
-                <div className="section-heading">
-                  <div>
-                    <strong>{editingUserAssignmentId ? 'Kullanıcıyı düzenle' : 'Yeni kullanıcı'}</strong>
-                    <small>Kullanıcı hesabı bu firmaya seçilen rol ile bağlanır.</small>
-                  </div>
-                  {editingUserAssignmentId && <button className="text-action" type="button" onClick={resetUserDraft}>Yeni kayıt</button>}
-                </div>
-                <Field label="E-posta">
-                  <input
-                    disabled={editingUserAssignmentId !== null}
-                    type="email"
-                    value={userDraft.email}
-                    onChange={(event) => setUserDraft({ ...userDraft, email: event.target.value })}
-                  />
-                </Field>
-                <Field label="Ad soyad / görünen ad">
-                  <input value={userDraft.displayName} onChange={(event) => setUserDraft({ ...userDraft, displayName: event.target.value })} />
-                </Field>
-                <Field label={editingUserAssignmentId ? 'Yeni şifre (değişmeyecekse boş)' : 'Geçici şifre'}>
-                  <input type="password" value={userDraft.password} onChange={(event) => setUserDraft({ ...userDraft, password: event.target.value })} />
-                </Field>
-                <Field label="Firma rolü">
-                  <select value={userDraft.companyRoleId} onChange={(event) => setUserDraft({ ...userDraft, companyRoleId: event.target.value })}>
-                    <option value="">Özel rol seçilmedi</option>
-                    {companyRoles.filter((role) => role.isActive).map((role) => (
-                      <option key={role.id} value={role.id}>{role.name}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Temel görev tipi">
-                  <select value={userDraft.legacyRole} onChange={(event) => setUserDraft({ ...userDraft, legacyRole: event.target.value as LegacyCompanyRole })}>
-                    <option value="Agent">Temsilci</option>
-                    <option value="Supervisor">Süpervizör</option>
-                    <option value="CompanyAdmin">Firma yöneticisi</option>
-                  </select>
-                </Field>
-                <div className="check-stack">
-                  <label className="check"><input checked={userDraft.isUserActive} type="checkbox" onChange={(event) => setUserDraft({ ...userDraft, isUserActive: event.target.checked })} /> Kullanıcı hesabı aktif</label>
-                  <label className="check"><input checked={userDraft.isAssignmentActive} type="checkbox" onChange={(event) => setUserDraft({ ...userDraft, isAssignmentActive: event.target.checked })} /> Firma ataması aktif</label>
-                </div>
-                {hasWorkspacePermission('users.manage') && (
-                  <button className="save-button" type="button" onClick={saveCompanyUser}>
-                    <Save size={16} /> {editingUserAssignmentId ? 'Kullanıcıyı güncelle' : 'Kullanıcıyı ekle'}
-                  </button>
-                )}
-              </div>
-              <div className="definition-list">
-                <div className="section-heading">
-                  <div>
-                    <strong>Tanımlı kullanıcılar</strong>
-                    <small>{companyUsers.length} firma kullanıcısı</small>
-                  </div>
-                </div>
-                {companyUsers.map((user) => (
-                  <button className="definition-row" key={user.assignmentId} type="button" onClick={() => editCompanyUser(user)}>
-                    <span className={user.isUserActive && user.isAssignmentActive ? 'status-dot active' : 'status-dot'} />
-                    <span>
-                      <strong>{user.displayName}</strong>
-                      <small>{user.email}</small>
-                    </span>
-                    <span className="definition-meta">
-                      <strong>{user.companyRoleName ?? user.legacyRole}</strong>
-                      <small>{user.isAssignmentActive ? 'Atama aktif' : 'Atama pasif'}</small>
-                    </span>
-                  </button>
-                ))}
-                {companyUsers.length === 0 && <div className="empty-state">Bu firmaya atanmış kullanıcı bulunmuyor.</div>}
-              </div>
+            <div className="management-panel-header">
+              <PanelTitle icon={<UserRound size={18} />} title="Firma Kullanıcıları" />
+              {hasWorkspacePermission('users.manage') && (
+                <button className="primary-action" disabled={!selectedCompanyId} type="button" onClick={() => { resetUserDraft(); setIsUserFormOpen(true); }}>
+                  <Plus size={16} /> Yeni kullanıcı
+                </button>
+              )}
             </div>
+            <PagedGrid
+              actionsLabel="Düzenle"
+              columns={userGridColumns}
+              defaultSortBy="DisplayName"
+              defaultSortDirection="asc"
+              emptyText="Bu firmaya atanmış kullanıcı bulunmuyor."
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryCompanyUsers(selectedCompanyId, request) : emptyPage(request)}
+              onRowClick={editCompanyUser}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              renderActions={hasWorkspacePermission('users.manage') ? (row) => (
+                <button aria-label={`${row.displayName} kullanıcısını düzenle`} className="grid-edit-button" type="button" onClick={() => editCompanyUser(row)}>
+                  <Pencil size={15} />
+                </button>
+              ) : undefined}
+              rowKey={(row) => row.assignmentId}
+              searchPlaceholder="Kullanıcı adı, e-posta veya rolde ara..."
+            />
           </section>}
 
           {activeSection === 'roles' && <section className="panel company-panel">
-            <PanelTitle icon={<ShieldCheck size={18} />} title="Roller ve Yetkiler" />
-            <div className="definition-layout role-layout">
-              <div className="definition-form">
-                <div className="section-heading">
-                  <div>
-                    <strong>{editingRoleId ? 'Rolü düzenle' : 'Yeni firma rolü'}</strong>
-                    <small>İzinler yalnızca seçili firma içinde geçerlidir.</small>
-                  </div>
-                  {editingRoleId && <button className="text-action" type="button" onClick={resetRoleDraft}>Yeni kayıt</button>}
-                </div>
-                <div className="form-grid two">
-                  <Field label="Rol kodu">
-                    <input value={roleDraft.code} onChange={(event) => setRoleDraft({ ...roleDraft, code: event.target.value })} placeholder="supervisor-tr" />
-                  </Field>
-                  <Field label="Rol adı">
-                    <input value={roleDraft.name} onChange={(event) => setRoleDraft({ ...roleDraft, name: event.target.value })} placeholder="Süpervizör" />
-                  </Field>
-                </div>
-                <Field label="Açıklama">
-                  <textarea value={roleDraft.description} onChange={(event) => setRoleDraft({ ...roleDraft, description: event.target.value })} />
-                </Field>
-                <label className="check"><input checked={roleDraft.isActive} type="checkbox" onChange={(event) => setRoleDraft({ ...roleDraft, isActive: event.target.checked })} /> Rol aktif</label>
-                <div className="permission-groups">
-                  {[...new Set(permissions.map((permission) => permission.module))].map((module) => (
-                    <div className="permission-group" key={module}>
-                      <strong>{module}</strong>
-                      {permissions.filter((permission) => permission.module === module).map((permission) => (
-                        <label className="permission-option" key={permission.code}>
-                          <input
-                            checked={roleDraft.permissionCodes.includes(permission.code)}
-                            type="checkbox"
-                            onChange={() => toggleRolePermission(permission.code)}
-                          />
-                          <span>
-                            <strong>{permission.name}</strong>
-                            <small>{permission.description}</small>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-                {hasWorkspacePermission('roles.manage') && (
-                  <button className="save-button" type="button" onClick={saveRole}>
-                    <Save size={16} /> {editingRoleId ? 'Rolü güncelle' : 'Rolü oluştur'}
-                  </button>
-                )}
-              </div>
-              <div className="definition-list">
-                <div className="section-heading">
-                  <div>
-                    <strong>Firma rolleri</strong>
-                    <small>{companyRoles.length} rol tanımlı</small>
-                  </div>
-                </div>
-                {companyRoles.map((role) => (
-                  <button className={editingRoleId === role.id ? 'definition-row selected' : 'definition-row'} key={role.id} type="button" onClick={() => editRole(role)}>
-                    <span className={role.isActive ? 'status-dot active' : 'status-dot'} />
-                    <span>
-                      <strong>{role.name}</strong>
-                      <small>{role.code}</small>
-                    </span>
-                    <span className="definition-meta">
-                      <strong>{role.permissionCodes.length} izin</strong>
-                      <small>{role.isSystemRole ? 'Sistem rolü' : 'Firma rolü'}</small>
-                    </span>
-                  </button>
-                ))}
-                {companyRoles.length === 0 && <div className="empty-state">Bu firma için henüz özel rol tanımlanmadı.</div>}
-              </div>
+            <div className="management-panel-header">
+              <PanelTitle icon={<ShieldCheck size={18} />} title="Roller ve Yetkiler" />
+              {hasWorkspacePermission('roles.manage') && (
+                <button className="primary-action" disabled={!selectedCompanyId} type="button" onClick={() => { resetRoleDraft(); setIsRoleFormOpen(true); }}>
+                  <Plus size={16} /> Yeni rol
+                </button>
+              )}
             </div>
+            <PagedGrid
+              actionsLabel="Düzenle"
+              columns={roleGridColumns}
+              defaultSortBy="Name"
+              defaultSortDirection="asc"
+              emptyText="Bu firma için henüz rol tanımlanmadı."
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryCompanyRoles(selectedCompanyId, request) : emptyPage(request)}
+              onRowClick={editRole}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              renderActions={hasWorkspacePermission('roles.manage') ? (row) => (
+                <button aria-label={`${row.name} rolünü düzenle`} className="grid-edit-button" type="button" onClick={() => editRole(row)}>
+                  <Pencil size={15} />
+                </button>
+              ) : undefined}
+              rowKey={(row) => row.id}
+              searchPlaceholder="Rol adı, kodu veya açıklamada ara..."
+            />
           </section>}
 
           {activeSection === 'simulator' && <section className="panel company-panel simulator">
@@ -1634,17 +1634,112 @@ function App() {
 
           {activeSection === 'logs' && <section className="panel logs-panel">
             <PanelTitle icon={<History size={18} />} title="Konuşma Logları" />
-            <div className="table-list log-list">
-              {logs.map((log) => (
-                <div className="list-row log-row" key={log.id}>
-                  <span>{new Date(log.startedAtUtc).toLocaleString('tr-TR')}</span>
-                  <strong>{log.decision}</strong>
-                  <small>{log.decisionReason}</small>
-                </div>
-              ))}
-            </div>
+            <PagedGrid
+              columns={logGridColumns}
+              defaultSortBy="StartedAtUtc"
+              emptyText="Konuşma veya karar kaydı bulunmuyor."
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryLogs(selectedCompanyId, request) : emptyPage(request)}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              rowKey={(row) => row.id}
+              searchPlaceholder="Kanal, intent, karar veya numarada ara..."
+            />
           </section>}
         </div>
+
+        {isUserFormOpen && (
+          <div className="drawer-backdrop" role="presentation" onMouseDown={() => setIsUserFormOpen(false)}>
+            <aside aria-label={editingUserAssignmentId ? 'Kullanıcıyı düzenle' : 'Yeni kullanıcı'} className="form-drawer" onMouseDown={(event) => event.stopPropagation()}>
+              <header className="form-drawer-header">
+                <div>
+                  <span>Erişim Yönetimi</span>
+                  <h2>{editingUserAssignmentId ? 'Kullanıcıyı düzenle' : 'Yeni kullanıcı'}</h2>
+                  <p>Kullanıcı hesabını seçili firmaya rol ve görev tipiyle bağlayın.</p>
+                </div>
+                <button aria-label="Kullanıcı formunu kapat" className="grid-icon-button" type="button" onClick={() => setIsUserFormOpen(false)}><X size={17} /></button>
+              </header>
+              <div className="form-drawer-body">
+                <Field label="E-posta">
+                  <input
+                    autoComplete="off"
+                    disabled={editingUserAssignmentId !== null}
+                    type="email"
+                    value={userDraft.email}
+                    onChange={(event) => setUserDraft({ ...userDraft, email: event.target.value })}
+                  />
+                </Field>
+                <Field label="Ad soyad / görünen ad">
+                  <input autoComplete="off" value={userDraft.displayName} onChange={(event) => setUserDraft({ ...userDraft, displayName: event.target.value })} />
+                </Field>
+                <Field label={editingUserAssignmentId ? 'Yeni şifre (değişmeyecekse boş)' : 'Geçici şifre'}>
+                  <input autoComplete="new-password" type="password" value={userDraft.password} onChange={(event) => setUserDraft({ ...userDraft, password: event.target.value })} />
+                </Field>
+                <Field label="Firma rolü">
+                  <select value={userDraft.companyRoleId} onChange={(event) => setUserDraft({ ...userDraft, companyRoleId: event.target.value })}>
+                    <option value="">Özel rol seçilmedi</option>
+                    {companyRoles.filter((role) => role.isActive).map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Temel görev tipi">
+                  <select value={userDraft.legacyRole} onChange={(event) => setUserDraft({ ...userDraft, legacyRole: event.target.value as LegacyCompanyRole })}>
+                    <option value="Agent">Temsilci</option>
+                    <option value="Supervisor">Süpervizör</option>
+                    <option value="CompanyAdmin">Firma yöneticisi</option>
+                  </select>
+                </Field>
+                <div className="check-stack">
+                  <label className="check"><input checked={userDraft.isUserActive} type="checkbox" onChange={(event) => setUserDraft({ ...userDraft, isUserActive: event.target.checked })} /> Kullanıcı hesabı aktif</label>
+                  <label className="check"><input checked={userDraft.isAssignmentActive} type="checkbox" onChange={(event) => setUserDraft({ ...userDraft, isAssignmentActive: event.target.checked })} /> Firma ataması aktif</label>
+                </div>
+              </div>
+              <footer className="form-drawer-footer">
+                <button className="secondary-action" type="button" onClick={() => setIsUserFormOpen(false)}>Vazgeç</button>
+                <button className="save-button" type="button" onClick={saveCompanyUser}>
+                  <Save size={16} /> {editingUserAssignmentId ? 'Güncelle' : 'Kullanıcıyı ekle'}
+                </button>
+              </footer>
+            </aside>
+          </div>
+        )}
+
+        {isRoleFormOpen && (
+          <div className="drawer-backdrop" role="presentation" onMouseDown={() => setIsRoleFormOpen(false)}>
+            <aside aria-label={editingRoleId ? 'Rolü düzenle' : 'Yeni rol'} className="form-drawer wide" onMouseDown={(event) => event.stopPropagation()}>
+              <header className="form-drawer-header">
+                <div>
+                  <span>Erişim Yönetimi</span>
+                  <h2>{editingRoleId ? 'Rolü düzenle' : 'Yeni firma rolü'}</h2>
+                  <p>İzinler yalnızca seçili firma ve bu role atanmış kullanıcılar için geçerlidir.</p>
+                </div>
+                <button aria-label="Rol formunu kapat" className="grid-icon-button" type="button" onClick={() => setIsRoleFormOpen(false)}><X size={17} /></button>
+              </header>
+              <div className="form-drawer-body">
+                <div className="form-grid two">
+                  <Field label="Rol kodu"><input value={roleDraft.code} onChange={(event) => setRoleDraft({ ...roleDraft, code: event.target.value })} placeholder="supervisor-tr" /></Field>
+                  <Field label="Rol adı"><input value={roleDraft.name} onChange={(event) => setRoleDraft({ ...roleDraft, name: event.target.value })} placeholder="Süpervizör" /></Field>
+                </div>
+                <Field label="Açıklama"><textarea value={roleDraft.description} onChange={(event) => setRoleDraft({ ...roleDraft, description: event.target.value })} /></Field>
+                <label className="check"><input checked={roleDraft.isActive} type="checkbox" onChange={(event) => setRoleDraft({ ...roleDraft, isActive: event.target.checked })} /> Rol aktif</label>
+                <div className="permission-groups">
+                  {[...new Set(permissions.map((permission) => permission.module))].map((module) => (
+                    <div className="permission-group" key={module}>
+                      <strong>{module}</strong>
+                      {permissions.filter((permission) => permission.module === module).map((permission) => (
+                        <label className="permission-option" key={permission.code}>
+                          <input checked={roleDraft.permissionCodes.includes(permission.code)} type="checkbox" onChange={() => toggleRolePermission(permission.code)} />
+                          <span><strong>{permission.name}</strong><small>{permission.description}</small></span>
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <footer className="form-drawer-footer">
+                <button className="secondary-action" type="button" onClick={() => setIsRoleFormOpen(false)}>Vazgeç</button>
+                <button className="save-button" type="button" onClick={saveRole}><Save size={16} /> {editingRoleId ? 'Rolü güncelle' : 'Rolü oluştur'}</button>
+              </footer>
+            </aside>
+          </div>
+        )}
       </section>
     </main>
   );

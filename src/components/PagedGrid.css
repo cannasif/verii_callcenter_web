@@ -1,0 +1,239 @@
+.paged-grid {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.paged-grid-toolbar,
+.paged-grid-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.paged-grid-toolbar {
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.paged-grid-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(380px, 100%);
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  color: #64748b;
+  background: #ffffff;
+}
+
+.paged-grid-search:focus-within {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
+}
+
+.paged-grid-search input {
+  min-width: 0;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.paged-grid-toolbar-actions,
+.paged-grid-pagination,
+.paged-grid-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.paged-grid-total {
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #475569;
+  background: #e8eef4;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.grid-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  color: #334155;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.grid-icon-button:hover:not(:disabled) {
+  color: #0f766e;
+  border-color: #5eead4;
+  background: #f0fdfa;
+}
+
+.grid-icon-button:disabled {
+  color: #94a3b8;
+  background: #f1f5f9;
+  cursor: not-allowed;
+}
+
+.paged-grid-table-shell {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.paged-grid table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+}
+
+.paged-grid th,
+.paged-grid td {
+  height: 44px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e8edf2;
+  vertical-align: middle;
+  font-size: 12px;
+}
+
+.paged-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: #475569;
+  background: #f8fafc;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.paged-grid th button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: inherit;
+  text-transform: inherit;
+}
+
+.paged-grid th button:disabled {
+  cursor: default;
+}
+
+.paged-grid tbody tr:not(.skeleton-row):hover {
+  background: #f8fafc;
+}
+
+.paged-grid tbody tr.clickable {
+  cursor: pointer;
+}
+
+.paged-grid tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.paged-grid .align-center {
+  text-align: center;
+}
+
+.paged-grid .align-center button {
+  justify-content: center;
+}
+
+.paged-grid .align-right {
+  text-align: right;
+}
+
+.paged-grid .align-right button {
+  justify-content: flex-end;
+}
+
+.paged-grid .actions-column {
+  width: 76px;
+  white-space: nowrap;
+}
+
+.paged-grid-message {
+  height: 100px !important;
+  color: #64748b;
+  text-align: center;
+}
+
+.paged-grid-message.error {
+  color: #b91c1c;
+}
+
+.skeleton-row td span {
+  display: block;
+  width: min(110px, 80%);
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: grid-skeleton 1.2s infinite;
+}
+
+.paged-grid-footer {
+  border-top: 1px solid #e2e8f0;
+  color: #64748b;
+  background: #ffffff;
+  font-size: 11px;
+}
+
+.paged-grid-range select {
+  width: auto;
+  min-height: 32px;
+  padding: 4px 26px 4px 8px;
+}
+
+.spin {
+  animation: grid-spin 0.8s linear infinite;
+}
+
+@keyframes grid-skeleton {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@keyframes grid-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 720px) {
+  .paged-grid-toolbar,
+  .paged-grid-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .paged-grid-search {
+    width: 100%;
+  }
+
+  .paged-grid-toolbar-actions,
+  .paged-grid-pagination,
+  .paged-grid-range {
+    justify-content: space-between;
+  }
+}

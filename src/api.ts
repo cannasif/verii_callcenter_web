@@ -119,6 +119,16 @@ export interface PagedResponse<T> {
   hasNextPage: boolean;
 }
 
+export interface PagedRequest {
+  pageNumber: number;
+  pageSize: number;
+  search?: string;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+  filterLogic?: 'and' | 'or';
+  filters?: Array<{ column: string; operator: string; value: string }>;
+}
+
 export interface BusinessHour {
   id: number;
   companyId: number;
@@ -190,6 +200,13 @@ export interface ConversationLog {
   endedAtUtc?: string | null;
 }
 
+function unwrapPaged<T>(response: ApiResponse<PagedResponse<T>>): PagedResponse<T> {
+  if (!response.success || !response.data) {
+    throw new Error(response.message || 'Liste yüklenemedi');
+  }
+  return response.data;
+}
+
 export const callCenterApi = {
   loginCompanies: () =>
     api
@@ -225,16 +242,25 @@ export const callCenterApi = {
     api.put<BusinessHour>(`/api/companies/${companyId}/business-hours/${dayOfWeek}`, payload).then((x) => x.data),
   calendarExceptions: (companyId: number) =>
     api.get<CalendarException[]>(`/api/companies/${companyId}/calendar-exceptions`).then((x) => x.data),
+  queryCalendarExceptions: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<CalendarException>>>(`/api/companies/${companyId}/calendar-exceptions/query`, request)
+      .then((x) => unwrapPaged(x.data)),
   createCalendarException: (companyId: number, payload: Omit<CalendarException, 'id' | 'companyId'>) =>
     api.post<CalendarException>(`/api/companies/${companyId}/calendar-exceptions`, payload).then((x) => x.data),
   deleteCalendarException: (companyId: number, id: number) =>
     api.delete(`/api/companies/${companyId}/calendar-exceptions/${id}`),
   departments: (companyId: number) =>
     api.get<Department[]>(`/api/companies/${companyId}/departments`).then((x) => x.data),
+  queryDepartments: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<Department>>>(`/api/companies/${companyId}/departments/query`, request)
+      .then((x) => unwrapPaged(x.data)),
   createDepartment: (companyId: number, payload: Omit<Department, 'id' | 'companyId'>) =>
     api.post<Department>(`/api/companies/${companyId}/departments`, payload).then((x) => x.data),
   routingRules: (companyId: number) =>
     api.get<RoutingRule[]>(`/api/companies/${companyId}/routing-rules`).then((x) => x.data),
+  queryRoutingRules: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<RoutingRule>>>(`/api/companies/${companyId}/routing-rules/query`, request)
+      .then((x) => unwrapPaged(x.data)),
   createRoutingRule: (companyId: number, payload: Omit<RoutingRule, 'id' | 'companyId'>) =>
     api.post<RoutingRule>(`/api/companies/${companyId}/routing-rules`, payload).then((x) => x.data),
   simulate: (payload: {
@@ -249,10 +275,16 @@ export const callCenterApi = {
     api
       .get<ConversationLog[]>('/api/conversation-logs', { params: companyId ? { companyId } : undefined })
       .then((x) => x.data),
+  queryLogs: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<ConversationLog>>>('/api/conversation-logs/query', request, { params: { companyId } })
+      .then((x) => unwrapPaged(x.data)),
   permissions: (companyId: number) =>
     api.get<PermissionDefinition[]>(`/api/companies/${companyId}/access/permissions`).then((x) => x.data),
   companyRoles: (companyId: number) =>
     api.get<CompanyRole[]>(`/api/companies/${companyId}/access/roles`).then((x) => x.data),
+  queryCompanyRoles: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<CompanyRole>>>(`/api/companies/${companyId}/access/roles/query`, request)
+      .then((x) => unwrapPaged(x.data)),
   createCompanyRole: (companyId: number, payload: Omit<CompanyRole, 'id' | 'companyId' | 'isSystemRole'>) =>
     api.post<CompanyRole>(`/api/companies/${companyId}/access/roles`, payload).then((x) => x.data),
   updateCompanyRole: (
@@ -262,6 +294,9 @@ export const callCenterApi = {
   ) => api.put<CompanyRole>(`/api/companies/${companyId}/access/roles/${roleId}`, payload).then((x) => x.data),
   companyUsers: (companyId: number) =>
     api.get<CompanyUser[]>(`/api/companies/${companyId}/access/users`).then((x) => x.data),
+  queryCompanyUsers: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<CompanyUser>>>(`/api/companies/${companyId}/access/users/query`, request)
+      .then((x) => unwrapPaged(x.data)),
   createCompanyUser: (
     companyId: number,
     payload: {
