@@ -173,6 +173,25 @@ export interface RoutingRule {
   message?: string | null;
 }
 
+export interface AiAssistantProfile {
+  id: number;
+  companyId: number;
+  isEnabled: boolean;
+  provider: string;
+  modelName: string;
+  systemInstructions?: string | null;
+  greetingMessage?: string | null;
+  fallbackMessage?: string | null;
+  handoffMessage?: string | null;
+  minimumConfidence: number;
+  maxFallbackAttempts: number;
+  handoffOnHumanRequest: boolean;
+  offerCallbackOutsideBusinessHours: boolean;
+  includeConversationSummaryOnHandoff: boolean;
+  piiRedactionEnabled: boolean;
+  handoffDepartmentId?: number | null;
+}
+
 export interface DecisionResult {
   companyId: number;
   isBusinessOpen: boolean;
@@ -263,6 +282,10 @@ export const callCenterApi = {
       .then((x) => unwrapPaged(x.data)),
   createRoutingRule: (companyId: number, payload: Omit<RoutingRule, 'id' | 'companyId'>) =>
     api.post<RoutingRule>(`/api/companies/${companyId}/routing-rules`, payload).then((x) => x.data),
+  aiAssistantProfile: (companyId: number) =>
+    api.get<AiAssistantProfile>(`/api/companies/${companyId}/ai-assistant-profile`).then((x) => x.data),
+  updateAiAssistantProfile: (companyId: number, payload: Omit<AiAssistantProfile, 'id' | 'companyId'>) =>
+    api.put<AiAssistantProfile>(`/api/companies/${companyId}/ai-assistant-profile`, payload).then((x) => x.data),
   simulate: (payload: {
     companyId: number;
     occurredAt: string;

@@ -586,6 +586,120 @@
   white-space: nowrap;
 }
 
+.definition-status.ai-enabled {
+  border-color: #99f6e4;
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.ai-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.ai-profile-section {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.ai-section-heading strong,
+.ai-section-heading small {
+  display: block;
+}
+
+.ai-section-heading strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.ai-section-heading small {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #dbe5ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.switch-row span,
+.switch-row strong,
+.switch-row small {
+  display: block;
+}
+
+.switch-row strong {
+  color: #334155;
+  font-size: 12px;
+}
+
+.switch-row small {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.switch-row input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.ai-instructions {
+  min-height: 148px;
+}
+
+.ai-secret-note {
+  margin: 0;
+  padding: 10px 11px;
+  border-left: 3px solid #0f766e;
+  color: #475569;
+  background: #ecfdf5;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.ai-policy-options {
+  padding-top: 2px;
+}
+
+.ai-profile-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.ai-profile-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 260px;
+  margin-top: 16px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #64748b;
+  background: #fbfcfe;
+  font-size: 13px;
+}
+
 .management-panel-header + .paged-grid {
   margin-top: 14px;
 }
@@ -1260,6 +1374,10 @@ input:disabled {
   .definition-layout.role-layout {
     grid-template-columns: 1fr;
     grid-column: span 1;
+  }
+
+  .ai-profile-grid {
+    grid-template-columns: 1fr;
   }
 
   .definition-list {

@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Building2,
+  Bot,
   CalendarDays,
   Check,
   ChevronDown,
@@ -35,6 +36,7 @@ import { PagedGrid, type PagedGridColumn } from './components/PagedGrid';
 import {
   callCenterApi,
   type AuthContext,
+  type AiAssistantProfile,
   type AuthCompany,
   type BusinessHour,
   type CalendarException,
@@ -81,8 +83,8 @@ const loginLanguages = [
 
 type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
-type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'rules' | 'simulator' | 'logs' | 'users' | 'roles';
-type WorkspaceGroup = 'company-management' | 'operation' | 'monitoring' | 'access-management';
+type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'rules' | 'ai-profile' | 'simulator' | 'logs' | 'users' | 'roles';
+type WorkspaceGroup = 'company-management' | 'operation' | 'ai-operation' | 'monitoring' | 'access-management';
 
 const workspacePaths: Record<WorkspaceSection, string> = {
   company: '/firma-yonetimi/firma-karti',
@@ -90,6 +92,7 @@ const workspacePaths: Record<WorkspaceSection, string> = {
   exceptions: '/firma-yonetimi/ozel-gunler',
   departments: '/operasyon/departman-kuyruklar',
   rules: '/operasyon/yonlendirme-kurallari',
+  'ai-profile': '/ai-operasyon/asistan-profili',
   simulator: '/izleme/karar-simulasyonu',
   logs: '/izleme/konusma-loglari',
   users: '/erisim/kullanicilar',
@@ -473,6 +476,27 @@ function emptyPage<T>(request: PagedRequest): Promise<PagedResponse<T>> {
   });
 }
 
+function defaultAiProfile(companyId: number | null = null): AiAssistantProfile {
+  return {
+    id: 0,
+    companyId: companyId ?? 0,
+    isEnabled: false,
+    provider: 'OpenAI',
+    modelName: 'gpt-4.1-mini',
+    systemInstructions: '',
+    greetingMessage: 'Merhaba, size nasıl yardımcı olabilirim?',
+    fallbackMessage: 'Bu konuda net bir yanıt veremiyorum. Sizi bir temsilciye aktarıyorum.',
+    handoffMessage: 'Sizi uygun temsilciye aktarıyorum. Lütfen hatta kalın.',
+    minimumConfidence: 0.65,
+    maxFallbackAttempts: 2,
+    handoffOnHumanRequest: true,
+    offerCallbackOutsideBusinessHours: true,
+    includeConversationSummaryOnHandoff: true,
+    piiRedactionEnabled: true,
+    handoffDepartmentId: null,
+  };
+}
+
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -483,6 +507,7 @@ function App() {
   const [expandedWorkspaceGroups, setExpandedWorkspaceGroups] = useState<Record<WorkspaceGroup, boolean>>({
     'company-management': true,
     operation: true,
+    'ai-operation': true,
     monitoring: true,
     'access-management': true,
   });
@@ -499,6 +524,9 @@ function App() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [permissions, setPermissions] = useState<PermissionDefinition[]>([]);
   const [companyRoles, setCompanyRoles] = useState<CompanyRole[]>([]);
+  const [aiProfile, setAiProfile] = useState<AiAssistantProfile>(() => defaultAiProfile());
+  const [isAiProfileLoading, setIsAiProfileLoading] = useState(false);
+  const [isAiProfileSaving, setIsAiProfileSaving] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
   const [editingUserAssignmentId, setEditingUserAssignmentId] = useState<number | null>(null);
   const [isRoleFormOpen, setIsRoleFormOpen] = useState(false);
@@ -599,6 +627,7 @@ function App() {
       { id: 'exceptions' as const, group: 'company-management' as const, permission: 'calendar.view', title: 'Özel Günler', description: 'Tatil, yarım gün ve kapalı günler', icon: <CalendarDays size={16} /> },
       { id: 'departments' as const, group: 'operation' as const, permission: 'departments.view', title: 'Departman ve Kuyruklar', description: 'Ekip, kuyruk ve dil tanımları', icon: <Headphones size={16} /> },
       { id: 'rules' as const, group: 'operation' as const, permission: 'routing.view', title: 'Yönlendirme Kuralları', description: 'AI, canlı aktarım ve aksiyonlar', icon: <GitBranch size={16} /> },
+      { id: 'ai-profile' as const, group: 'ai-operation' as const, permission: 'ai.view', title: 'AI Asistan Profili', description: 'Yanıt, güven ve temsilciye devir politikası', icon: <Bot size={16} /> },
       { id: 'simulator' as const, group: 'monitoring' as const, permission: 'simulator.execute', title: 'Karar Simülasyonu', description: 'Kural sonucunu test et', icon: <Play size={16} /> },
       { id: 'logs' as const, group: 'monitoring' as const, permission: 'logs.view', title: 'Konuşma Logları', description: 'Çağrı karar kayıtları', icon: <History size={16} /> },
       { id: 'users' as const, group: 'access-management' as const, permission: 'users.view', title: 'Firma Kullanıcıları', description: 'Kullanıcı ve firma rolü atamaları', icon: <UserRound size={16} /> },
@@ -615,6 +644,7 @@ function App() {
     () => [
       { id: 'company-management' as const, title: 'Firma Yönetimi', icon: <Building2 size={18} /> },
       { id: 'operation' as const, title: 'Operasyon Tanımları', icon: <SlidersHorizontal size={18} /> },
+      { id: 'ai-operation' as const, title: 'AI Operasyon', icon: <Bot size={18} /> },
       { id: 'monitoring' as const, title: 'İzleme ve Test', icon: <History size={18} /> },
       { id: 'access-management' as const, title: 'Erişim Yönetimi', icon: <ShieldCheck size={18} /> },
     ],
@@ -818,17 +848,51 @@ function App() {
   async function refreshCompanyData(companyId: number, context = authContext) {
     setStatus('Firma kuralları yükleniyor');
     const can = (permission: string) => context?.isSuperAdmin || context?.permissionCodes?.includes(permission);
-    const [hoursData, departmentData, permissionData, roleData] = await Promise.all([
+    setIsAiProfileLoading(can('ai.view') ?? false);
+    const [hoursData, departmentData, permissionData, roleData, aiProfileData] = await Promise.all([
       can('calendar.view') ? callCenterApi.businessHours(companyId) : Promise.resolve([]),
       can('departments.view') ? callCenterApi.departments(companyId) : Promise.resolve([]),
       can('roles.view') ? callCenterApi.permissions(companyId) : Promise.resolve([]),
       can('roles.view') ? callCenterApi.companyRoles(companyId) : Promise.resolve([]),
+      can('ai.view') ? callCenterApi.aiAssistantProfile(companyId) : Promise.resolve(defaultAiProfile(companyId)),
     ]);
     setBusinessHours(hoursData);
     setDepartments(departmentData);
     setPermissions(permissionData);
     setCompanyRoles(roleData);
+    setAiProfile(aiProfileData);
+    setIsAiProfileLoading(false);
     setStatus('Hazır');
+  }
+
+  async function saveAiProfile() {
+    if (!selectedCompanyId || !hasWorkspacePermission('ai.manage')) return;
+    setIsAiProfileSaving(true);
+    setStatus('AI asistan profili kaydediliyor');
+    try {
+      const saved = await callCenterApi.updateAiAssistantProfile(selectedCompanyId, {
+        isEnabled: aiProfile.isEnabled,
+        provider: aiProfile.provider,
+        modelName: aiProfile.modelName,
+        systemInstructions: aiProfile.systemInstructions || null,
+        greetingMessage: aiProfile.greetingMessage || null,
+        fallbackMessage: aiProfile.fallbackMessage || null,
+        handoffMessage: aiProfile.handoffMessage || null,
+        minimumConfidence: Number(aiProfile.minimumConfidence),
+        maxFallbackAttempts: Number(aiProfile.maxFallbackAttempts),
+        handoffOnHumanRequest: aiProfile.handoffOnHumanRequest,
+        offerCallbackOutsideBusinessHours: aiProfile.offerCallbackOutsideBusinessHours,
+        includeConversationSummaryOnHandoff: aiProfile.includeConversationSummaryOnHandoff,
+        piiRedactionEnabled: aiProfile.piiRedactionEnabled,
+        handoffDepartmentId: aiProfile.handoffDepartmentId || null,
+      });
+      setAiProfile(saved);
+      setStatus('AI asistan profili kaydedildi');
+    } catch {
+      setStatus('AI asistan profili kaydedilemedi');
+    } finally {
+      setIsAiProfileSaving(false);
+    }
   }
 
   async function selectCompany(companyId: number) {
@@ -1591,6 +1655,53 @@ function App() {
               rowKey={(row) => row.id}
               searchPlaceholder="Kurallarda, intent veya mesajda ara..."
             />
+          </section>}
+
+          {activeSection === 'ai-profile' && <section className="panel company-panel ai-profile-panel">
+            <div className="management-panel-header">
+              <div>
+                <PanelTitle icon={<Bot size={18} />} title="AI Asistan Profili" />
+                <p className="panel-helper">Asistanın yanıt sınırlarını, güven eşiğini ve temsilciye devir davranışını firma bazında yönetin.</p>
+              </div>
+              <span className={aiProfile.isEnabled ? 'definition-status ai-enabled' : 'definition-status'}>{aiProfile.isEnabled ? 'AI yanıtı açık' : 'AI yanıtı kapalı'}</span>
+            </div>
+
+            {isAiProfileLoading ? (
+              <div className="ai-profile-loading"><RefreshCw className="spin" size={18} /> AI politikası yükleniyor</div>
+            ) : (
+              <div className="ai-profile-grid">
+                <div className="ai-profile-section">
+                  <div className="ai-section-heading"><strong>Çalışma Profili</strong><small>Model seçimi ve müşteriye görünen ilk yanıt.</small></div>
+                  <label className="switch-row"><span><strong>AI asistanı aktif</strong><small>Uygun kurallarda çağrıyı AI karşılar.</small></span><input checked={aiProfile.isEnabled} disabled={!hasWorkspacePermission('ai.manage')} type="checkbox" onChange={(event) => setAiProfile({ ...aiProfile, isEnabled: event.target.checked })} /></label>
+                  <div className="form-grid two">
+                    <Field label="Sağlayıcı"><select disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.provider} onChange={(event) => setAiProfile({ ...aiProfile, provider: event.target.value })}><option value="OpenAI">OpenAI</option><option value="Azure OpenAI">Azure OpenAI</option><option value="Custom">Özel sağlayıcı</option></select></Field>
+                    <Field label="Model adı"><input disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.modelName} onChange={(event) => setAiProfile({ ...aiProfile, modelName: event.target.value })} placeholder="gpt-4.1-mini" /></Field>
+                  </div>
+                  <Field label="Karşılama mesajı"><textarea disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.greetingMessage ?? ''} onChange={(event) => setAiProfile({ ...aiProfile, greetingMessage: event.target.value })} /></Field>
+                  <Field label="Sistem talimatı"><textarea className="ai-instructions" disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.systemInstructions ?? ''} onChange={(event) => setAiProfile({ ...aiProfile, systemInstructions: event.target.value })} placeholder="Asistanın tonu, yapabilecekleri, yapamayacakları ve kaynak kullanma kuralları." /></Field>
+                  <p className="ai-secret-note">Sağlayıcı anahtarı burada tutulmaz; canlı bağlantıda sunucu ortam değişkeni veya gizli anahtar kasası kullanılır.</p>
+                </div>
+
+                <div className="ai-profile-section">
+                  <div className="ai-section-heading"><strong>Güven ve Devir Politikası</strong><small>AI'nin ne zaman duracağını ve temsilciye hangi bağlamı aktaracağını belirleyin.</small></div>
+                  <div className="form-grid two">
+                    <Field label="Minimum güven skoru"><input disabled={!hasWorkspacePermission('ai.manage')} max="1" min="0" step="0.05" type="number" value={aiProfile.minimumConfidence} onChange={(event) => setAiProfile({ ...aiProfile, minimumConfidence: Number(event.target.value) })} /></Field>
+                    <Field label="Maksimum fallback"><input disabled={!hasWorkspacePermission('ai.manage')} max="5" min="0" type="number" value={aiProfile.maxFallbackAttempts} onChange={(event) => setAiProfile({ ...aiProfile, maxFallbackAttempts: Number(event.target.value) })} /></Field>
+                    <Field label="Devir kuyruğu"><select disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.handoffDepartmentId?.toString() ?? ''} onChange={(event) => setAiProfile({ ...aiProfile, handoffDepartmentId: event.target.value ? Number(event.target.value) : null })}><option value="">Kuralın hedef departmanını kullan</option>{departments.filter((department) => department.isActive).map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></Field>
+                    <Field label="Temsilciye devir mesajı"><input disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.handoffMessage ?? ''} onChange={(event) => setAiProfile({ ...aiProfile, handoffMessage: event.target.value })} /></Field>
+                  </div>
+                  <Field label="Fallback mesajı"><textarea disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.fallbackMessage ?? ''} onChange={(event) => setAiProfile({ ...aiProfile, fallbackMessage: event.target.value })} /></Field>
+                  <div className="check-stack ai-policy-options">
+                    <label className="check"><input checked={aiProfile.handoffOnHumanRequest} disabled={!hasWorkspacePermission('ai.manage')} type="checkbox" onChange={(event) => setAiProfile({ ...aiProfile, handoffOnHumanRequest: event.target.checked })} /> Müşteri temsilci istediğinde doğrudan devir</label>
+                    <label className="check"><input checked={aiProfile.offerCallbackOutsideBusinessHours} disabled={!hasWorkspacePermission('ai.manage')} type="checkbox" onChange={(event) => setAiProfile({ ...aiProfile, offerCallbackOutsideBusinessHours: event.target.checked })} /> Mesai dışındaysa geri arama teklif et</label>
+                    <label className="check"><input checked={aiProfile.includeConversationSummaryOnHandoff} disabled={!hasWorkspacePermission('ai.manage')} type="checkbox" onChange={(event) => setAiProfile({ ...aiProfile, includeConversationSummaryOnHandoff: event.target.checked })} /> Devirde temsilciye konuşma özeti gönder</label>
+                    <label className="check"><input checked={aiProfile.piiRedactionEnabled} disabled={!hasWorkspacePermission('ai.manage')} type="checkbox" onChange={(event) => setAiProfile({ ...aiProfile, piiRedactionEnabled: event.target.checked })} /> Log ve özette kişisel veriyi maskele</label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {hasWorkspacePermission('ai.manage') && <div className="ai-profile-footer"><button className="save-button" disabled={isAiProfileLoading || isAiProfileSaving || !selectedCompanyId} type="button" onClick={saveAiProfile}>{isAiProfileSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} AI politikasını kaydet</button></div>}
           </section>}
 
           {activeSection === 'users' && <section className="panel company-panel">
