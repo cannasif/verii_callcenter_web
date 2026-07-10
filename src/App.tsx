@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronRight,
   Clock3,
   Eye,
   EyeOff,
@@ -20,6 +21,7 @@ import {
   Rocket,
   Save,
   ShieldCheck,
+  SlidersHorizontal,
   UserRound,
 } from 'lucide-react';
 import './App.css';
@@ -67,6 +69,7 @@ const loginLanguages = [
 type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
 type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'rules' | 'simulator' | 'logs';
+type WorkspaceGroup = 'company-management' | 'operation' | 'monitoring';
 
 const loginTranslations: Record<LoginLanguageCode, {
   brandSuffix: string;
@@ -435,6 +438,11 @@ function App() {
   const [loginCompanies, setLoginCompanies] = useState<AuthCompany[]>([]);
   const [isLoginCompaniesLoading, setIsLoginCompaniesLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<WorkspaceSection>('company');
+  const [expandedWorkspaceGroups, setExpandedWorkspaceGroups] = useState<Record<WorkspaceGroup, boolean>>({
+    'company-management': true,
+    operation: true,
+    monitoring: true,
+  });
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const [loginDraft, setLoginDraft] = useState({
@@ -513,17 +521,33 @@ function App() {
   );
   const workspaceSections = useMemo(
     () => [
-      { id: 'company' as const, title: 'Firma Bilgileri', description: 'Ana firma kartı ve yasal bilgiler', icon: <Building2 size={16} /> },
-      { id: 'hours' as const, title: 'Haftalık Saat Tanımı', description: 'Gün bazlı açık/kapalı saatler', icon: <Clock3 size={16} /> },
-      { id: 'exceptions' as const, title: 'Özel Günler', description: 'Tatil, yarım gün ve kapalı günler', icon: <CalendarDays size={16} /> },
-      { id: 'departments' as const, title: 'Departmanlar', description: 'Kuyruk ve ekip tanımları', icon: <Headphones size={16} /> },
-      { id: 'rules' as const, title: 'Yönlendirme Kuralları', description: 'AI, canlı aktarım ve aksiyonlar', icon: <GitBranch size={16} /> },
-      { id: 'simulator' as const, title: 'Karar Simülasyonu', description: 'Kural sonucunu test et', icon: <Play size={16} /> },
-      { id: 'logs' as const, title: 'Konuşma Logları', description: 'Çağrı karar kayıtları', icon: <History size={16} /> },
+      { id: 'company' as const, group: 'company-management' as const, title: 'Firma Kartı', description: 'Ana firma kartı ve yasal bilgiler', icon: <Building2 size={16} /> },
+      { id: 'hours' as const, group: 'company-management' as const, title: 'Çalışma Saatleri', description: 'Haftalık açık ve kapalı saatler', icon: <Clock3 size={16} /> },
+      { id: 'exceptions' as const, group: 'company-management' as const, title: 'Özel Günler', description: 'Tatil, yarım gün ve kapalı günler', icon: <CalendarDays size={16} /> },
+      { id: 'departments' as const, group: 'operation' as const, title: 'Departman ve Kuyruklar', description: 'Ekip, kuyruk ve dil tanımları', icon: <Headphones size={16} /> },
+      { id: 'rules' as const, group: 'operation' as const, title: 'Yönlendirme Kuralları', description: 'AI, canlı aktarım ve aksiyonlar', icon: <GitBranch size={16} /> },
+      { id: 'simulator' as const, group: 'monitoring' as const, title: 'Karar Simülasyonu', description: 'Kural sonucunu test et', icon: <Play size={16} /> },
+      { id: 'logs' as const, group: 'monitoring' as const, title: 'Konuşma Logları', description: 'Çağrı karar kayıtları', icon: <History size={16} /> },
+    ],
+    [],
+  );
+  const workspaceGroups = useMemo(
+    () => [
+      { id: 'company-management' as const, title: 'Firma Yönetimi', icon: <Building2 size={18} /> },
+      { id: 'operation' as const, title: 'Operasyon Tanımları', icon: <SlidersHorizontal size={18} /> },
+      { id: 'monitoring' as const, title: 'İzleme ve Test', icon: <History size={18} /> },
     ],
     [],
   );
   const activeWorkspaceSection = workspaceSections.find((section) => section.id === activeSection) ?? workspaceSections[0];
+
+  function selectWorkspaceSection(section: WorkspaceSection) {
+    const definition = workspaceSections.find((item) => item.id === section);
+    if (definition) {
+      setExpandedWorkspaceGroups((groups) => ({ ...groups, [definition.group]: true }));
+    }
+    setActiveSection(section);
+  }
 
   useEffect(() => {
     const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
@@ -945,24 +969,57 @@ function App() {
         </div>
 
         <nav className="module-list" aria-label="Call center modülleri">
-          {workspaceSections.map((section) => (
-            <button
-              className={activeSection === section.id ? 'module-item active' : 'module-item'}
-              key={section.id}
-              type="button"
-              onClick={() => setActiveSection(section.id)}
-            >
-              {section.icon}
-              <span>
-                <strong>{section.title}</strong>
-                <small>{section.description}</small>
-              </span>
-            </button>
-          ))}
+          {workspaceGroups.map((group) => {
+            const groupSections = workspaceSections.filter((section) => section.group === group.id);
+            const groupHasActiveSection = groupSections.some((section) => section.id === activeSection);
+            const isExpanded = expandedWorkspaceGroups[group.id];
+
+            return (
+              <div className="module-group" key={group.id}>
+                <button
+                  aria-expanded={isExpanded}
+                  className={groupHasActiveSection ? 'module-group-trigger active' : 'module-group-trigger'}
+                  type="button"
+                  onClick={() => setExpandedWorkspaceGroups((groups) => ({ ...groups, [group.id]: !groups[group.id] }))}
+                >
+                  <span className="module-group-title">
+                    {group.icon}
+                    <strong>{group.title}</strong>
+                  </span>
+                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </button>
+                {isExpanded && (
+                  <div className="module-group-content">
+                    {groupSections.map((section) => (
+                      <button
+                        className={activeSection === section.id ? 'module-item active' : 'module-item'}
+                        key={section.id}
+                        type="button"
+                        onClick={() => selectWorkspaceSection(section.id)}
+                      >
+                        {section.icon}
+                        <span>
+                          <strong>{section.title}</strong>
+                          <small>{section.description}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         <div className="company-list">
-          <span className="sidebar-label">Firmalar</span>
+          <span className="sidebar-label">Aktif Firma</span>
+          {!authContext?.isSuperAdmin && selectedCompany && (
+            <div className="company-context">
+              <Building2 size={16} />
+              <span>{selectedCompany.name}</span>
+              <small>{selectedCompany.code}</small>
+            </div>
+          )}
           {companies.map((company) => (
             <button
               className={company.id === selectedCompanyId ? 'company-item active' : 'company-item'}
