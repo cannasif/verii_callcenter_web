@@ -40,6 +40,10 @@ import {
   type AuthCompany,
   type BusinessHour,
   type CalendarException,
+  type CallQueue,
+  type CallSession,
+  type AgentPresence,
+  type AgentPresenceStatus,
   type Company,
   type CompanyRole,
   type CompanyUser,
@@ -52,6 +56,9 @@ import {
   type PagedResponse,
   type RoutingAction,
   type RoutingRule,
+  type QueueDistributionStrategy,
+  type QueueMember,
+  type QueueAgentCandidate,
 } from './api';
 
 const dayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
@@ -83,7 +90,7 @@ const loginLanguages = [
 
 type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
-type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'rules' | 'ai-profile' | 'simulator' | 'logs' | 'users' | 'roles';
+type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'queues' | 'agent-status' | 'rules' | 'ai-profile' | 'simulator' | 'call-sessions' | 'logs' | 'users' | 'roles';
 type WorkspaceGroup = 'company-management' | 'operation' | 'ai-operation' | 'monitoring' | 'access-management';
 
 const workspacePaths: Record<WorkspaceSection, string> = {
@@ -91,9 +98,12 @@ const workspacePaths: Record<WorkspaceSection, string> = {
   hours: '/company-management/business-hours',
   exceptions: '/company-management/calendar-exceptions',
   departments: '/operations/departments',
+  queues: '/operations/queues',
+  'agent-status': '/operations/agent-status',
   rules: '/operations/routing-rules',
   'ai-profile': '/ai-operations/assistant-profile',
   simulator: '/monitoring/decision-simulator',
+  'call-sessions': '/monitoring/call-sessions',
   logs: '/monitoring/conversation-logs',
   users: '/access-management/users',
   roles: '/access-management/roles',
@@ -549,6 +559,12 @@ function App() {
   const [isExceptionFormOpen, setIsExceptionFormOpen] = useState(false);
   const [isDepartmentFormOpen, setIsDepartmentFormOpen] = useState(false);
   const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
+  const [isQueueFormOpen, setIsQueueFormOpen] = useState(false);
+  const [editingQueueId, setEditingQueueId] = useState<number | null>(null);
+  const [queueMembers, setQueueMembers] = useState<QueueMember[]>([]);
+  const [queueMemberCandidates, setQueueMemberCandidates] = useState<QueueAgentCandidate[]>([]);
+  const [isQueueMembersLoading, setIsQueueMembersLoading] = useState(false);
+  const [agentPresences, setAgentPresences] = useState<AgentPresence[]>([]);
   const [isFormSaving, setIsFormSaving] = useState(false);
   const [savingBusinessHour, setSavingBusinessHour] = useState<number | null>(null);
   const [gridRefreshVersion, setGridRefreshVersion] = useState(0);
@@ -572,6 +588,8 @@ function App() {
     languageCode: '',
     isActive: true,
   });
+  const [queueDraft, setQueueDraft] = useState({ departmentId: '', code: '', name: '', description: '', priority: 100, maxWaitingCalls: 50, maxWaitSeconds: 300, wrapUpSeconds: 30, distributionStrategy: 'LongestIdle', isActive: true });
+  const [queueMemberDraft, setQueueMemberDraft] = useState({ companyUserId: '', skillLevel: 3, priority: 100 });
   const [ruleDraft, setRuleDraft] = useState({
     name: '',
     priority: 100,
@@ -641,9 +659,12 @@ function App() {
       { id: 'hours' as const, group: 'company-management' as const, permission: 'calendar.view', title: 'Çalışma Saatleri', description: 'Haftalık açık ve kapalı saatler', icon: <Clock3 size={16} /> },
       { id: 'exceptions' as const, group: 'company-management' as const, permission: 'calendar.view', title: 'Özel Günler', description: 'Tatil, yarım gün ve kapalı günler', icon: <CalendarDays size={16} /> },
       { id: 'departments' as const, group: 'operation' as const, permission: 'departments.view', title: 'Departman ve Kuyruklar', description: 'Ekip, kuyruk ve dil tanımları', icon: <Headphones size={16} /> },
+      { id: 'queues' as const, group: 'operation' as const, permission: 'queues.view', title: 'Çağrı Kuyrukları', description: 'Kapasite, dağıtım ve bekleme politikaları', icon: <History size={16} /> },
+      { id: 'agent-status' as const, group: 'operation' as const, permission: 'agent-status.view', title: 'Temsilci Durumları', description: 'Uygunluk, çağrı ve mola durumları', icon: <UserRound size={16} /> },
       { id: 'rules' as const, group: 'operation' as const, permission: 'routing.view', title: 'Yönlendirme Kuralları', description: 'AI, canlı aktarım ve aksiyonlar', icon: <GitBranch size={16} /> },
       { id: 'ai-profile' as const, group: 'ai-operation' as const, permission: 'ai.view', title: 'AI Asistan Profili', description: 'Yanıt, güven ve temsilciye devir politikası', icon: <Bot size={16} /> },
       { id: 'simulator' as const, group: 'monitoring' as const, permission: 'simulator.execute', title: 'Karar Simülasyonu', description: 'Kural sonucunu test et', icon: <Play size={16} /> },
+      { id: 'call-sessions' as const, group: 'monitoring' as const, permission: 'calls.view', title: 'Çağrı Oturumları', description: 'Aktif ve tamamlanan çağrı yaşam döngüsü', icon: <Headphones size={16} /> },
       { id: 'logs' as const, group: 'monitoring' as const, permission: 'logs.view', title: 'Konuşma Logları', description: 'Çağrı karar kayıtları', icon: <History size={16} /> },
       { id: 'users' as const, group: 'access-management' as const, permission: 'users.view', title: 'Firma Kullanıcıları', description: 'Kullanıcı ve firma rolü atamaları', icon: <UserRound size={16} /> },
       { id: 'roles' as const, group: 'access-management' as const, permission: 'roles.view', title: 'Roller ve Yetkiler', description: 'Rol bazlı modül ve işlem izinleri', icon: <ShieldCheck size={16} /> },
@@ -704,6 +725,22 @@ function App() {
     { key: 'type', label: 'Tip', sortKey: 'IsSystemRole', width: '120px', render: (row) => row.isSystemRole ? 'Sistem rolü' : 'Firma rolü' },
     { key: 'status', label: 'Durum', sortKey: 'IsActive', width: '100px', render: (row) => <span className={row.isActive ? 'data-badge active' : 'data-badge'}>{row.isActive ? 'Aktif' : 'Pasif'}</span> },
   ], []);
+  const queueGridColumns = useMemo<PagedGridColumn<CallQueue>[]>(() => [
+    { key: 'priority', label: 'Öncelik', sortKey: 'Priority', width: '90px', render: (row) => <span className="mono-cell">#{row.priority}</span> },
+    { key: 'queue', label: 'Kuyruk', sortKey: 'Name', render: (row) => <span className="primary-cell"><strong>{row.name}</strong><small>{row.code} · {row.departmentName}</small></span> },
+    { key: 'strategy', label: 'Dağıtım', sortKey: 'DistributionStrategy', width: '150px', render: (row) => String(row.distributionStrategy) },
+    { key: 'capacity', label: 'Kapasite', sortKey: 'MaxWaitingCalls', width: '110px', render: (row) => `${row.maxWaitingCalls} çağrı` },
+    { key: 'members', label: 'Temsilci', width: '100px', align: 'center', render: (row) => <span className="data-count">{row.activeMemberCount}</span> },
+    { key: 'status', label: 'Durum', sortKey: 'IsActive', width: '100px', render: (row) => <span className={row.isActive ? 'data-badge active' : 'data-badge'}>{row.isActive ? 'Aktif' : 'Pasif'}</span> },
+  ], []);
+  const callSessionGridColumns = useMemo<PagedGridColumn<CallSession>[]>(() => [
+    { key: 'created', label: 'Başlangıç', sortKey: 'CreatedAtUtc', width: '170px', render: (row) => new Date(row.createdAtUtc).toLocaleString('tr-TR') },
+    { key: 'correlation', label: 'Çağrı', render: (row) => <span className="primary-cell"><strong>{row.callerNumberMasked ?? 'Numara gizli'}</strong><small>{row.correlationId.slice(0, 12)}</small></span> },
+    { key: 'direction', label: 'Yön', sortKey: 'Direction', width: '100px', render: (row) => String(row.direction) === 'Inbound' || row.direction === 0 ? 'Gelen' : 'Giden' },
+    { key: 'queue', label: 'Kuyruk', width: '150px', render: (row) => row.queueName ?? '-' },
+    { key: 'agent', label: 'Temsilci', width: '160px', render: (row) => row.assignedAgentName ?? '-' },
+    { key: 'status', label: 'Durum', sortKey: 'Status', width: '120px', render: (row) => <span className="data-badge info">{String(row.status)}</span> },
+  ], []);
 
   function selectWorkspaceSection(section: WorkspaceSection) {
     const definition = workspaceSections.find((item) => item.id === section);
@@ -746,6 +783,12 @@ function App() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, [activeSection, authContext?.userId]);
+
+  useEffect(() => {
+    if (activeSection !== 'agent-status' || !selectedCompanyId ||
+      !(authContext?.isSuperAdmin || authContext?.permissionCodes?.includes('agent-status.view'))) return;
+    void callCenterApi.agentPresences(selectedCompanyId).then(setAgentPresences).catch(() => setAgentPresences([]));
+  }, [activeSection, selectedCompanyId, gridRefreshVersion, authContext]);
 
   useEffect(() => {
     const legacySection = legacyWorkspacePaths[location.pathname];
@@ -1016,6 +1059,127 @@ function App() {
       setStatus('Departman kaydedilemedi');
     } finally {
       setIsFormSaving(false);
+    }
+  }
+
+  function resetQueueDraft() {
+    setEditingQueueId(null);
+    setQueueMembers([]);
+    setQueueMemberCandidates([]);
+    setQueueMemberDraft({ companyUserId: '', skillLevel: 3, priority: 100 });
+    setQueueDraft({ departmentId: departments.find((item) => item.isActive)?.id.toString() ?? '', code: '', name: '', description: '', priority: 100, maxWaitingCalls: 50, maxWaitSeconds: 300, wrapUpSeconds: 30, distributionStrategy: 'LongestIdle', isActive: true });
+  }
+
+  async function saveQueue() {
+    if (!selectedCompanyId || !queueDraft.departmentId || !queueDraft.code.trim() || !queueDraft.name.trim()) return;
+    setStatus('Çağrı kuyruğu kaydediliyor');
+    setIsFormSaving(true);
+    try {
+      const payload = {
+        ...queueDraft,
+        departmentId: Number(queueDraft.departmentId),
+        description: queueDraft.description || null,
+        distributionStrategy: queueDraft.distributionStrategy as QueueDistributionStrategy,
+      };
+      if (editingQueueId) await callCenterApi.updateCallQueue(selectedCompanyId, editingQueueId, payload);
+      else await callCenterApi.createCallQueue(selectedCompanyId, payload);
+      setGridRefreshVersion((version) => version + 1);
+      setIsQueueFormOpen(false);
+      setStatus(editingQueueId ? 'Çağrı kuyruğu güncellendi' : 'Çağrı kuyruğu kaydedildi');
+    } catch {
+      setStatus('Çağrı kuyruğu kaydedilemedi');
+    } finally {
+      setIsFormSaving(false);
+    }
+  }
+
+  async function editQueue(queue: CallQueue) {
+    if (!selectedCompanyId) return;
+    setEditingQueueId(queue.id);
+    setQueueDraft({ departmentId: queue.departmentId.toString(), code: queue.code, name: queue.name, description: queue.description ?? '', priority: queue.priority, maxWaitingCalls: queue.maxWaitingCalls, maxWaitSeconds: queue.maxWaitSeconds, wrapUpSeconds: queue.wrapUpSeconds, distributionStrategy: String(queue.distributionStrategy), isActive: queue.isActive });
+    setQueueMemberDraft({ companyUserId: '', skillLevel: 3, priority: 100 });
+    setQueueMembers([]);
+    setQueueMemberCandidates([]);
+    setIsQueueFormOpen(true);
+    setIsQueueMembersLoading(true);
+    try {
+      const [members, users] = await Promise.all([
+        callCenterApi.queueMembers(selectedCompanyId, queue.id),
+        callCenterApi.queueAgentCandidates(selectedCompanyId),
+      ]);
+      setQueueMembers(members);
+      setQueueMemberCandidates(users);
+    } catch {
+      setStatus('Kuyruk üyeleri yüklenemedi');
+    } finally {
+      setIsQueueMembersLoading(false);
+    }
+  }
+
+  async function addQueueMember() {
+    if (!selectedCompanyId || !editingQueueId || !queueMemberDraft.companyUserId) return;
+    setIsFormSaving(true);
+    try {
+      const saved = await callCenterApi.upsertQueueMember(selectedCompanyId, editingQueueId, {
+        companyUserId: Number(queueMemberDraft.companyUserId),
+        skillLevel: queueMemberDraft.skillLevel,
+        priority: queueMemberDraft.priority,
+        isActive: true,
+      });
+      setQueueMembers((items) => [...items.filter((item) => item.id !== saved.id), saved].sort((a, b) => a.priority - b.priority));
+      setQueueMemberDraft({ companyUserId: '', skillLevel: 3, priority: 100 });
+      setGridRefreshVersion((version) => version + 1);
+      setStatus('Temsilci kuyruğa eklendi');
+    } catch {
+      setStatus('Temsilci kuyruğa eklenemedi');
+    } finally {
+      setIsFormSaving(false);
+    }
+  }
+
+  async function removeQueueMember(member: QueueMember) {
+    if (!selectedCompanyId || !editingQueueId || !window.confirm(`${member.displayName} kuyruktan çıkarılsın mı?`)) return;
+    setIsFormSaving(true);
+    try {
+      await callCenterApi.deleteQueueMember(selectedCompanyId, editingQueueId, member.id);
+      setQueueMembers((items) => items.filter((item) => item.id !== member.id));
+      setGridRefreshVersion((version) => version + 1);
+      setStatus('Temsilci kuyruktan çıkarıldı');
+    } catch {
+      setStatus('Temsilci kuyruktan çıkarılamadı');
+    } finally {
+      setIsFormSaving(false);
+    }
+  }
+
+  async function updateQueueMember(member: QueueMember, changes: Partial<Pick<QueueMember, 'skillLevel' | 'priority' | 'isActive'>>) {
+    if (!selectedCompanyId || !editingQueueId) return;
+    const next = { ...member, ...changes };
+    setQueueMembers((items) => items.map((item) => item.id === member.id ? next : item));
+    try {
+      const saved = await callCenterApi.upsertQueueMember(selectedCompanyId, editingQueueId, {
+        companyUserId: member.companyUserId,
+        skillLevel: next.skillLevel,
+        priority: next.priority,
+        isActive: next.isActive,
+      });
+      setQueueMembers((items) => items.map((item) => item.id === saved.id ? saved : item).sort((a, b) => a.priority - b.priority));
+      setStatus('Kuyruk üyeliği güncellendi');
+    } catch {
+      setQueueMembers((items) => items.map((item) => item.id === member.id ? member : item));
+      setStatus('Kuyruk üyeliği güncellenemedi');
+    }
+  }
+
+  async function changeAgentStatus(companyUserId: number, statusValue: AgentPresenceStatus) {
+    if (!selectedCompanyId) return;
+    setStatus('Temsilci durumu güncelleniyor');
+    try {
+      const updated = await callCenterApi.updateAgentPresence(selectedCompanyId, companyUserId, statusValue);
+      setAgentPresences((items) => items.map((item) => item.companyUserId === companyUserId ? updated : item));
+      setStatus('Temsilci durumu güncellendi');
+    } catch {
+      setStatus('Temsilci durumu güncellenemedi');
     }
   }
 
@@ -1662,6 +1826,35 @@ function App() {
             />
           </section>}
 
+          {activeSection === 'queues' && <section className="panel company-panel">
+            <div className="management-panel-header">
+              <PanelTitle icon={<History size={18} />} title="Çağrı Kuyrukları" />
+              {hasWorkspacePermission('queues.manage') && <button className="primary-action" disabled={!selectedCompanyId || departments.length === 0} type="button" onClick={() => { resetQueueDraft(); setIsQueueFormOpen(true); }}><Plus size={16} /> Yeni kuyruk</button>}
+            </div>
+            <PagedGrid
+              actionsLabel="Yönet"
+              columns={queueGridColumns}
+              defaultSortBy="Priority"
+              defaultSortDirection="asc"
+              emptyDescription="Çağrıların kapasite, bekleme süresi ve temsilci dağıtım stratejisini burada yönetin."
+              emptyTitle="Çağrı kuyruğu bulunmuyor"
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryCallQueues(selectedCompanyId, request) : emptyPage(request)}
+              onRowClick={editQueue}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              renderActions={(row) => <button aria-label={`${row.name} kuyruğunu yönet`} className="grid-edit-button" type="button" onClick={() => void editQueue(row)}><Pencil size={15} /></button>}
+              rowKey={(row) => row.id}
+              searchPlaceholder="Kuyruk adı, kodu veya açıklamada ara..."
+            />
+          </section>}
+
+          {activeSection === 'agent-status' && <section className="panel company-panel">
+            <div className="management-panel-header"><PanelTitle icon={<UserRound size={18} />} title="Temsilci Durumları" /><button aria-label="Durumları yenile" className="grid-icon-button" type="button" onClick={() => setGridRefreshVersion((version) => version + 1)}><RefreshCw size={16} /></button></div>
+            <div className="paged-grid"><div className="paged-grid-table-shell"><table><thead><tr><th>Temsilci</th><th>Durum</th><th>Son değişiklik</th><th>Aktif çağrı</th></tr></thead><tbody>
+              {agentPresences.length === 0 && <tr><td className="paged-grid-message" colSpan={4}>Aktif firma kullanıcısı bulunmuyor.</td></tr>}
+              {agentPresences.map((agent) => <tr key={agent.companyUserId}><td><span className="primary-cell"><strong>{agent.displayName}</strong><small>{agent.email}</small></span></td><td><select disabled={!hasWorkspacePermission('agent-status.manage')} value={String(agent.status)} onChange={(event) => void changeAgentStatus(agent.companyUserId, event.target.value as AgentPresenceStatus)}><option value="Offline">Çevrimdışı</option><option value="Available">Uygun</option><option value="Busy">Meşgul</option><option value="WrapUp">Çağrı sonrası işlem</option><option value="Break">Mola</option></select></td><td>{new Date(agent.statusChangedAtUtc).toLocaleString('tr-TR')}</td><td>{agent.activeCallCorrelationId?.slice(0, 12) ?? '-'}</td></tr>)}
+            </tbody></table></div></div>
+          </section>}
+
           {activeSection === 'rules' && <section className="panel company-panel">
             <div className="management-panel-header">
               <PanelTitle icon={<GitBranch size={18} />} title="Yönlendirme Kuralları" />
@@ -1823,6 +2016,21 @@ function App() {
             )}
           </section>}
 
+          {activeSection === 'call-sessions' && <section className="panel company-panel">
+            <div className="management-panel-header"><PanelTitle icon={<Headphones size={18} />} title="Çağrı Oturumları" /></div>
+            <PagedGrid
+              columns={callSessionGridColumns}
+              defaultSortBy="CreatedAtUtc"
+              defaultSortDirection="desc"
+              emptyDescription="SIP veya WebRTC sağlayıcısı bağlandığında çağrı yaşam döngüsü burada izlenecek."
+              emptyTitle="Çağrı oturumu bulunmuyor"
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryCallSessions(selectedCompanyId, request) : emptyPage(request)}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              rowKey={(row) => row.id}
+              searchPlaceholder="Çağrı, numara veya sağlayıcı kimliğinde ara..."
+            />
+          </section>}
+
           {activeSection === 'logs' && <section className="panel logs-panel">
             <PanelTitle icon={<History size={18} />} title="Konuşma Logları" />
             <PagedGrid
@@ -1901,6 +2109,38 @@ function App() {
                 <div className="check-stack"><label className="check"><input checked={ruleDraft.isActive} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, isActive: event.target.checked })} /> Kural aktif</label><label className="check"><input checked={ruleDraft.appliesDuringBusinessHours} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, appliesDuringBusinessHours: event.target.checked })} /> Mesai saatlerinde uygula</label><label className="check"><input checked={ruleDraft.appliesAfterHours} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, appliesAfterHours: event.target.checked })} /> Mesai dışında uygula</label></div>
               </div>
               <footer className="form-drawer-footer"><button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsRuleFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={isFormSaving || !ruleDraft.name.trim()} type="button" onClick={createRule}>{isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} Kuralı kaydet</button></footer>
+            </aside>
+          </div>
+        )}
+
+        {isQueueFormOpen && (
+          <div className="drawer-backdrop" role="presentation" onMouseDown={() => setIsQueueFormOpen(false)}>
+            <aside aria-label={editingQueueId ? 'Çağrı kuyruğunu yönet' : 'Yeni çağrı kuyruğu'} className="form-drawer wide" onMouseDown={(event) => event.stopPropagation()}>
+              <header className="form-drawer-header"><div><span>Operasyon</span><h2>{editingQueueId ? 'Çağrı kuyruğunu yönet' : 'Yeni çağrı kuyruğu'}</h2><p>Çağrı kapasitesini, bekleme sınırını, dağıtımı ve kuyruk üyelerini yönetin.</p></div><button aria-label="Kuyruk formunu kapat" className="grid-icon-button" type="button" onClick={() => setIsQueueFormOpen(false)}><X size={17} /></button></header>
+              <div className="form-drawer-body">
+                <Field label="Departman" required><select required value={queueDraft.departmentId} onChange={(event) => setQueueDraft({ ...queueDraft, departmentId: event.target.value })}><option value="">Departman seçin</option>{departments.filter((item) => item.isActive).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+                <div className="form-grid two"><Field label="Kuyruk kodu" required><input required value={queueDraft.code} onChange={(event) => setQueueDraft({ ...queueDraft, code: event.target.value })} placeholder="SUPPORT-TR" /></Field><Field label="Kuyruk adı" required><input required value={queueDraft.name} onChange={(event) => setQueueDraft({ ...queueDraft, name: event.target.value })} placeholder="Türkçe Destek" /></Field></div>
+                <Field label="Açıklama"><textarea value={queueDraft.description} onChange={(event) => setQueueDraft({ ...queueDraft, description: event.target.value })} /></Field>
+                <div className="form-grid two"><Field label="Dağıtım stratejisi" required><select value={queueDraft.distributionStrategy} onChange={(event) => setQueueDraft({ ...queueDraft, distributionStrategy: event.target.value })}><option value="LongestIdle">En uzun süredir boşta</option><option value="RoundRobin">Sırayla dağıt</option><option value="FewestCalls">En az çağrı alan</option><option value="Random">Rastgele</option></select></Field><Field label="Öncelik" required><input min="1" max="9999" required type="number" value={queueDraft.priority} onChange={(event) => setQueueDraft({ ...queueDraft, priority: Number(event.target.value) })} /></Field></div>
+                <div className="form-grid two"><Field label="Maksimum bekleyen çağrı" required><input min="1" required type="number" value={queueDraft.maxWaitingCalls} onChange={(event) => setQueueDraft({ ...queueDraft, maxWaitingCalls: Number(event.target.value) })} /></Field><Field label="Maksimum bekleme (sn)" required><input min="1" required type="number" value={queueDraft.maxWaitSeconds} onChange={(event) => setQueueDraft({ ...queueDraft, maxWaitSeconds: Number(event.target.value) })} /></Field></div>
+                <Field label="Çağrı sonrası işlem süresi (sn)" required><input min="0" required type="number" value={queueDraft.wrapUpSeconds} onChange={(event) => setQueueDraft({ ...queueDraft, wrapUpSeconds: Number(event.target.value) })} /></Field>
+                <label className="check"><input checked={queueDraft.isActive} type="checkbox" onChange={(event) => setQueueDraft({ ...queueDraft, isActive: event.target.checked })} /> Kuyruk aktif</label>
+                {editingQueueId && <section className="queue-members-section">
+                  <div className="queue-members-heading"><div><strong>Kuyruk üyeleri</strong><small>Temsilci yetkinliği ve dağıtım önceliği</small></div><span className="data-count">{queueMembers.length}</span></div>
+                  {hasWorkspacePermission('queues.manage') && <div className="queue-member-add-row">
+                    <Field label="Temsilci" required><select disabled={isQueueMembersLoading} value={queueMemberDraft.companyUserId} onChange={(event) => setQueueMemberDraft({ ...queueMemberDraft, companyUserId: event.target.value })}><option value="">Temsilci seçin</option>{queueMemberCandidates.filter((user) => !queueMembers.some((member) => member.companyUserId === user.companyUserId)).map((user) => <option key={user.companyUserId} value={user.companyUserId}>{user.displayName} · {user.email}</option>)}</select></Field>
+                    <Field label="Yetkinlik" required><select value={queueMemberDraft.skillLevel} onChange={(event) => setQueueMemberDraft({ ...queueMemberDraft, skillLevel: Number(event.target.value) })}>{[1, 2, 3, 4, 5].map((level) => <option key={level} value={level}>{level}</option>)}</select></Field>
+                    <Field label="Öncelik" required><input min="1" max="9999" type="number" value={queueMemberDraft.priority} onChange={(event) => setQueueMemberDraft({ ...queueMemberDraft, priority: Number(event.target.value) })} /></Field>
+                    <button aria-label="Temsilciyi kuyruğa ekle" className="primary-action queue-member-add-button" disabled={isFormSaving || !queueMemberDraft.companyUserId} type="button" onClick={addQueueMember}><Plus size={16} /> Ekle</button>
+                  </div>}
+                  <div className="queue-member-list">
+                    {isQueueMembersLoading && <div className="queue-members-empty"><RefreshCw className="spin" size={16} /> Üyeler yükleniyor</div>}
+                    {!isQueueMembersLoading && queueMembers.length === 0 && <div className="queue-members-empty">Bu kuyruğa henüz temsilci atanmadı.</div>}
+                    {!isQueueMembersLoading && queueMembers.map((member) => <div className="queue-member-row" key={member.id}><span className="primary-cell"><strong>{member.displayName}</strong><small>{member.email}</small></span><label className="inline-member-field">Yetkinlik<select disabled={!hasWorkspacePermission('queues.manage')} value={member.skillLevel} onChange={(event) => void updateQueueMember(member, { skillLevel: Number(event.target.value) })}>{[1, 2, 3, 4, 5].map((level) => <option key={level} value={level}>{level}/5</option>)}</select></label><label className="inline-member-field">Öncelik<input disabled={!hasWorkspacePermission('queues.manage')} min="1" max="9999" type="number" value={member.priority} onBlur={(event) => void updateQueueMember(member, { priority: Number(event.target.value) })} onChange={(event) => setQueueMembers((items) => items.map((item) => item.id === member.id ? { ...item, priority: Number(event.target.value) } : item))} /></label>{hasWorkspacePermission('queues.manage') && <button aria-label={`${member.displayName} temsilcisini kuyruktan çıkar`} className="grid-icon-button danger" disabled={isFormSaving} type="button" onClick={() => void removeQueueMember(member)}><X size={15} /></button>}</div>)}
+                  </div>
+                </section>}
+              </div>
+              <footer className="form-drawer-footer"><button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsQueueFormOpen(false)}>Vazgeç</button>{hasWorkspacePermission('queues.manage') && <button className="save-button" disabled={isFormSaving || !queueDraft.departmentId || !queueDraft.code.trim() || !queueDraft.name.trim()} type="button" onClick={saveQueue}>{isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} {editingQueueId ? 'Kuyruğu güncelle' : 'Kuyruğu kaydet'}</button>}</footer>
             </aside>
           </div>
         )}
