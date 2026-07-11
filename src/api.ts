@@ -219,6 +219,15 @@ export interface ConversationLog {
   endedAtUtc?: string | null;
 }
 
+export type QueueDistributionStrategy = 'LongestIdle' | 'RoundRobin' | 'FewestCalls' | 'Random' | number;
+export interface CallQueue { id: number; companyId: number; departmentId: number; departmentName: string; code: string; name: string; description?: string | null; priority: number; maxWaitingCalls: number; maxWaitSeconds: number; wrapUpSeconds: number; distributionStrategy: QueueDistributionStrategy; isActive: boolean; activeMemberCount: number; }
+export interface QueueMember { id: number; queueId: number; companyUserId: number; userId: number; displayName: string; email: string; skillLevel: number; priority: number; isActive: boolean; }
+export interface QueueAgentCandidate { companyUserId: number; userId: number; displayName: string; email: string; role: LegacyCompanyRole; }
+export type AgentPresenceStatus = 'Offline' | 'Available' | 'Busy' | 'WrapUp' | 'Break' | number;
+export interface AgentPresence { companyUserId: number; userId: number; displayName: string; email: string; status: AgentPresenceStatus; reasonCode?: string | null; statusChangedAtUtc: string; lastHeartbeatAtUtc?: string | null; activeCallCorrelationId?: string | null; }
+export type CallSessionStatus = 'Created' | 'Ringing' | 'Queued' | 'Assigned' | 'Connected' | 'WrapUp' | 'Completed' | 'Abandoned' | 'Failed' | number;
+export interface CallSession { id: number; companyId: number; correlationId: string; direction: 'Inbound' | 'Outbound' | number; status: CallSessionStatus; channel: string; providerCallId?: string | null; callerNumberMasked?: string | null; calledNumber?: string | null; queueId?: number | null; queueName?: string | null; assignedCompanyUserId?: number | null; assignedAgentName?: string | null; createdAtUtc: string; queuedAtUtc?: string | null; answeredAtUtc?: string | null; endedAtUtc?: string | null; endReason?: string | null; }
+
 function unwrapPaged<T>(response: ApiResponse<PagedResponse<T>>): PagedResponse<T> {
   if (!response.success || !response.data) {
     throw new Error(response.message || 'Liste yüklenemedi');
@@ -343,4 +352,28 @@ export const callCenterApi = {
       isAssignmentActive: boolean;
     },
   ) => api.put<CompanyUser>(`/api/companies/${companyId}/access/users/${assignmentId}`, payload).then((x) => x.data),
+  queryCallQueues: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<CallQueue>>>(`/api/companies/${companyId}/operations/queues/query`, request).then((x) => unwrapPaged(x.data)),
+  createCallQueue: (companyId: number, payload: Omit<CallQueue, 'id' | 'companyId' | 'departmentName' | 'activeMemberCount'>) =>
+    api.post<CallQueue>(`/api/companies/${companyId}/operations/queues`, payload).then((x) => x.data),
+  updateCallQueue: (companyId: number, queueId: number, payload: Omit<CallQueue, 'id' | 'companyId' | 'departmentName' | 'activeMemberCount'>) =>
+    api.put<CallQueue>(`/api/companies/${companyId}/operations/queues/${queueId}`, payload).then((x) => x.data),
+  deleteCallQueue: (companyId: number, queueId: number) =>
+    api.delete(`/api/companies/${companyId}/operations/queues/${queueId}`),
+  queueMembers: (companyId: number, queueId: number) =>
+    api.get<QueueMember[]>(`/api/companies/${companyId}/operations/queues/${queueId}/members`).then((x) => x.data),
+  queueAgentCandidates: (companyId: number) =>
+    api.get<QueueAgentCandidate[]>(`/api/companies/${companyId}/operations/queues/agent-candidates`).then((x) => x.data),
+  upsertQueueMember: (companyId: number, queueId: number, payload: { companyUserId: number; skillLevel: number; priority: number; isActive: boolean }) =>
+    api.post<QueueMember>(`/api/companies/${companyId}/operations/queues/${queueId}/members`, payload).then((x) => x.data),
+  deleteQueueMember: (companyId: number, queueId: number, memberId: number) =>
+    api.delete(`/api/companies/${companyId}/operations/queues/${queueId}/members/${memberId}`),
+  agentPresences: (companyId: number) =>
+    api.get<AgentPresence[]>(`/api/companies/${companyId}/operations/agent-presences`).then((x) => x.data),
+  updateAgentPresence: (companyId: number, companyUserId: number, status: AgentPresenceStatus, reasonCode?: string) =>
+    api.put<AgentPresence>(`/api/companies/${companyId}/operations/agent-presences/${companyUserId}`, { status, reasonCode }).then((x) => x.data),
+  queryCallSessions: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<CallSession>>>(`/api/companies/${companyId}/operations/call-sessions/query`, request).then((x) => unwrapPaged(x.data)),
+  assignNextAvailableAgent: (companyId: number, sessionId: number) =>
+    api.post<CallSession>(`/api/companies/${companyId}/operations/call-sessions/${sessionId}/assign-next-agent`).then((x) => x.data),
 };
