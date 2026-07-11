@@ -943,6 +943,12 @@
   font-weight: 700;
 }
 
+.required-mark {
+  margin-left: 4px;
+  color: #dc2626;
+  font-weight: 900;
+}
+
 input,
 select,
 textarea {

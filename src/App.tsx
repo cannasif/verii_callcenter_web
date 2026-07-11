@@ -87,20 +87,35 @@ type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'ru
 type WorkspaceGroup = 'company-management' | 'operation' | 'ai-operation' | 'monitoring' | 'access-management';
 
 const workspacePaths: Record<WorkspaceSection, string> = {
-  company: '/firma-yonetimi/firma-karti',
-  hours: '/firma-yonetimi/calisma-saatleri',
-  exceptions: '/firma-yonetimi/ozel-gunler',
-  departments: '/operasyon/departman-kuyruklar',
-  rules: '/operasyon/yonlendirme-kurallari',
-  'ai-profile': '/ai-operasyon/asistan-profili',
-  simulator: '/izleme/karar-simulasyonu',
-  logs: '/izleme/konusma-loglari',
-  users: '/erisim/kullanicilar',
-  roles: '/erisim/roller-yetkiler',
+  company: '/company-management/company-profile',
+  hours: '/company-management/business-hours',
+  exceptions: '/company-management/calendar-exceptions',
+  departments: '/operations/departments',
+  rules: '/operations/routing-rules',
+  'ai-profile': '/ai-operations/assistant-profile',
+  simulator: '/monitoring/decision-simulator',
+  logs: '/monitoring/conversation-logs',
+  users: '/access-management/users',
+  roles: '/access-management/roles',
+};
+
+const legacyWorkspacePaths: Partial<Record<string, WorkspaceSection>> = {
+  '/firma-yonetimi/firma-karti': 'company',
+  '/firma-yonetimi/calisma-saatleri': 'hours',
+  '/firma-yonetimi/ozel-gunler': 'exceptions',
+  '/operasyon/departman-kuyruklar': 'departments',
+  '/operasyon/yonlendirme-kurallari': 'rules',
+  '/ai-operasyon/asistan-profili': 'ai-profile',
+  '/izleme/karar-simulasyonu': 'simulator',
+  '/izleme/konusma-loglari': 'logs',
+  '/erisim/kullanicilar': 'users',
+  '/erisim/roller-yetkiler': 'roles',
 };
 
 function getWorkspaceSection(pathname: string): WorkspaceSection {
-  return (Object.entries(workspacePaths).find(([, path]) => path === pathname)?.[0] as WorkspaceSection | undefined) ?? 'company';
+  return (Object.entries(workspacePaths).find(([, path]) => path === pathname)?.[0] as WorkspaceSection | undefined)
+    ?? legacyWorkspacePaths[pathname]
+    ?? 'company';
 }
 
 const loginTranslations: Record<LoginLanguageCode, {
@@ -733,6 +748,13 @@ function App() {
   }, [activeSection, authContext?.userId]);
 
   useEffect(() => {
+    const legacySection = legacyWorkspacePaths[location.pathname];
+    if (legacySection) {
+      navigate(workspacePaths[legacySection], { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  useEffect(() => {
     if (!isUserMenuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -1251,9 +1273,10 @@ function App() {
                 />
               </LoginField>
 
-              <LoginField icon={<UserRound size={17} />} label={loginText.operator}>
+              <LoginField required icon={<UserRound size={17} />} label={loginText.operator}>
                 <input
                   className="login-control"
+                  required
                   placeholder={loginText.operatorPlaceholder}
                   value={loginDraft.email}
                   onChange={(event) => setLoginDraft({ ...loginDraft, email: event.target.value })}
@@ -1268,10 +1291,12 @@ function App() {
                 }
                 icon={<Lock size={17} />}
                 label={loginText.password}
+                required
               >
                 <input
                   className="login-control login-control-password"
                   placeholder="••••••••"
+                  required
                   type={isPasswordVisible ? 'text' : 'password'}
                   value={loginDraft.password}
                   onChange={(event) => setLoginDraft({ ...loginDraft, password: event.target.value })}
@@ -1492,14 +1517,14 @@ function App() {
               <div className="notice">Firma tanımlama ve firma ana bilgileri sadece süper admin tarafından yönetilir.</div>
             )}
             <div className="form-grid two">
-              <Field label="Kod">
-                <input disabled={!authContext?.isSuperAdmin} value={companyDraft.code} onChange={(event) => setCompanyDraft({ ...companyDraft, code: event.target.value })} />
+              <Field label="Kod" required>
+                <input disabled={!authContext?.isSuperAdmin} required value={companyDraft.code} onChange={(event) => setCompanyDraft({ ...companyDraft, code: event.target.value })} />
               </Field>
-              <Field label="Firma adı">
-                <input disabled={!authContext?.isSuperAdmin} value={companyDraft.name} onChange={(event) => setCompanyDraft({ ...companyDraft, name: event.target.value })} />
+              <Field label="Firma adı" required>
+                <input disabled={!authContext?.isSuperAdmin} required value={companyDraft.name} onChange={(event) => setCompanyDraft({ ...companyDraft, name: event.target.value })} />
               </Field>
-              <Field label="Firma tipi">
-                <select disabled={!authContext?.isSuperAdmin} value={companyDraft.companyType} onChange={(event) => setCompanyDraft({ ...companyDraft, companyType: event.target.value })}>
+              <Field label="Firma tipi" required>
+                <select disabled={!authContext?.isSuperAdmin} required value={companyDraft.companyType} onChange={(event) => setCompanyDraft({ ...companyDraft, companyType: event.target.value })}>
                   <option value="Customer">Müşteri</option>
                   <option value="Internal">İç firma</option>
                   <option value="Partner">Partner</option>
@@ -1531,11 +1556,11 @@ function App() {
               <Field label="Ülke">
                 <input disabled={!authContext?.isSuperAdmin} value={companyDraft.country ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, country: event.target.value })} />
               </Field>
-              <Field label="Zaman dilimi">
-                <input disabled={!authContext?.isSuperAdmin} value={companyDraft.timeZoneId} onChange={(event) => setCompanyDraft({ ...companyDraft, timeZoneId: event.target.value })} />
+              <Field label="Zaman dilimi" required>
+                <input disabled={!authContext?.isSuperAdmin} required value={companyDraft.timeZoneId} onChange={(event) => setCompanyDraft({ ...companyDraft, timeZoneId: event.target.value })} />
               </Field>
-              <Field label="Varsayılan dil">
-                <input disabled={!authContext?.isSuperAdmin} value={companyDraft.defaultLanguageCode} onChange={(event) => setCompanyDraft({ ...companyDraft, defaultLanguageCode: event.target.value })} />
+              <Field label="Varsayılan dil" required>
+                <input disabled={!authContext?.isSuperAdmin} required value={companyDraft.defaultLanguageCode} onChange={(event) => setCompanyDraft({ ...companyDraft, defaultLanguageCode: event.target.value })} />
               </Field>
             </div>
             <Field label="Adres">
@@ -1551,7 +1576,7 @@ function App() {
               <textarea disabled={!authContext?.isSuperAdmin} value={companyDraft.notes ?? ''} onChange={(event) => setCompanyDraft({ ...companyDraft, notes: event.target.value })} />
             </Field>
             {authContext?.isSuperAdmin && (
-              <button className="save-button" type="button" onClick={saveCompany}>
+              <button className="save-button" disabled={!companyDraft.code.trim() || !companyDraft.name.trim() || !companyDraft.companyType.trim() || !companyDraft.timeZoneId.trim() || !companyDraft.defaultLanguageCode.trim()} type="button" onClick={saveCompany}>
                 <Save size={16} /> Firmayı kaydet
               </button>
             )}
@@ -1674,8 +1699,8 @@ function App() {
                   <div className="ai-section-heading"><strong>Çalışma Profili</strong><small>Model seçimi ve müşteriye görünen ilk yanıt.</small></div>
                   <label className="switch-row"><span><strong>AI asistanı aktif</strong><small>Uygun kurallarda çağrıyı AI karşılar.</small></span><input checked={aiProfile.isEnabled} disabled={!hasWorkspacePermission('ai.manage')} type="checkbox" onChange={(event) => setAiProfile({ ...aiProfile, isEnabled: event.target.checked })} /></label>
                   <div className="form-grid two">
-                    <Field label="Sağlayıcı"><select disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.provider} onChange={(event) => setAiProfile({ ...aiProfile, provider: event.target.value })}><option value="OpenAI">OpenAI</option><option value="Azure OpenAI">Azure OpenAI</option><option value="Custom">Özel sağlayıcı</option></select></Field>
-                    <Field label="Model adı"><input disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.modelName} onChange={(event) => setAiProfile({ ...aiProfile, modelName: event.target.value })} placeholder="gpt-4.1-mini" /></Field>
+                    <Field label="Sağlayıcı" required><select disabled={!hasWorkspacePermission('ai.manage')} required value={aiProfile.provider} onChange={(event) => setAiProfile({ ...aiProfile, provider: event.target.value })}><option value="OpenAI">OpenAI</option><option value="Azure OpenAI">Azure OpenAI</option><option value="Custom">Özel sağlayıcı</option></select></Field>
+                    <Field label="Model adı" required><input disabled={!hasWorkspacePermission('ai.manage')} required value={aiProfile.modelName} onChange={(event) => setAiProfile({ ...aiProfile, modelName: event.target.value })} placeholder="gpt-4.1-mini" /></Field>
                   </div>
                   <Field label="Karşılama mesajı"><textarea disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.greetingMessage ?? ''} onChange={(event) => setAiProfile({ ...aiProfile, greetingMessage: event.target.value })} /></Field>
                   <Field label="Sistem talimatı"><textarea className="ai-instructions" disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.systemInstructions ?? ''} onChange={(event) => setAiProfile({ ...aiProfile, systemInstructions: event.target.value })} placeholder="Asistanın tonu, yapabilecekleri, yapamayacakları ve kaynak kullanma kuralları." /></Field>
@@ -1685,8 +1710,8 @@ function App() {
                 <div className="ai-profile-section">
                   <div className="ai-section-heading"><strong>Güven ve Devir Politikası</strong><small>AI'nin ne zaman duracağını ve temsilciye hangi bağlamı aktaracağını belirleyin.</small></div>
                   <div className="form-grid two">
-                    <Field label="Minimum güven skoru"><input disabled={!hasWorkspacePermission('ai.manage')} max="1" min="0" step="0.05" type="number" value={aiProfile.minimumConfidence} onChange={(event) => setAiProfile({ ...aiProfile, minimumConfidence: Number(event.target.value) })} /></Field>
-                    <Field label="Maksimum fallback"><input disabled={!hasWorkspacePermission('ai.manage')} max="5" min="0" type="number" value={aiProfile.maxFallbackAttempts} onChange={(event) => setAiProfile({ ...aiProfile, maxFallbackAttempts: Number(event.target.value) })} /></Field>
+                    <Field label="Minimum güven skoru" required><input disabled={!hasWorkspacePermission('ai.manage')} max="1" min="0" required step="0.05" type="number" value={aiProfile.minimumConfidence} onChange={(event) => setAiProfile({ ...aiProfile, minimumConfidence: Number(event.target.value) })} /></Field>
+                    <Field label="Maksimum fallback" required><input disabled={!hasWorkspacePermission('ai.manage')} max="5" min="0" required type="number" value={aiProfile.maxFallbackAttempts} onChange={(event) => setAiProfile({ ...aiProfile, maxFallbackAttempts: Number(event.target.value) })} /></Field>
                     <Field label="Devir kuyruğu"><select disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.handoffDepartmentId?.toString() ?? ''} onChange={(event) => setAiProfile({ ...aiProfile, handoffDepartmentId: event.target.value ? Number(event.target.value) : null })}><option value="">Kuralın hedef departmanını kullan</option>{departments.filter((department) => department.isActive).map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></Field>
                     <Field label="Temsilciye devir mesajı"><input disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.handoffMessage ?? ''} onChange={(event) => setAiProfile({ ...aiProfile, handoffMessage: event.target.value })} /></Field>
                   </div>
@@ -1701,7 +1726,7 @@ function App() {
               </div>
             )}
 
-            {hasWorkspacePermission('ai.manage') && <div className="ai-profile-footer"><button className="save-button" disabled={isAiProfileLoading || isAiProfileSaving || !selectedCompanyId} type="button" onClick={saveAiProfile}>{isAiProfileSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} AI politikasını kaydet</button></div>}
+            {hasWorkspacePermission('ai.manage') && <div className="ai-profile-footer"><button className="save-button" disabled={isAiProfileLoading || isAiProfileSaving || !selectedCompanyId || !aiProfile.provider.trim() || !aiProfile.modelName.trim() || aiProfile.minimumConfidence < 0 || aiProfile.minimumConfidence > 1 || aiProfile.maxFallbackAttempts < 0 || aiProfile.maxFallbackAttempts > 5} type="button" onClick={saveAiProfile}>{isAiProfileSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} AI politikasını kaydet</button></div>}
           </section>}
 
           {activeSection === 'users' && <section className="panel company-panel">
@@ -1769,8 +1794,8 @@ function App() {
           {activeSection === 'simulator' && <section className="panel company-panel simulator">
             <PanelTitle icon={<Play size={18} />} title="Karar Simülasyonu" />
             <div className="form-grid two compact">
-              <Field label="Tarih/saat">
-                <input type="datetime-local" value={simulationDraft.occurredAt} onChange={(event) => setSimulationDraft({ ...simulationDraft, occurredAt: event.target.value })} />
+              <Field label="Tarih/saat" required>
+                <input required type="datetime-local" value={simulationDraft.occurredAt} onChange={(event) => setSimulationDraft({ ...simulationDraft, occurredAt: event.target.value })} />
               </Field>
               <Field label="Dil">
                 <input value={simulationDraft.languageCode} onChange={(event) => setSimulationDraft({ ...simulationDraft, languageCode: event.target.value })} />
@@ -1823,8 +1848,8 @@ function App() {
               </header>
               <div className="form-drawer-body">
                 <div className="form-grid two">
-                  <Field label="Tarih"><input type="date" value={exceptionDraft.date} onChange={(event) => setExceptionDraft({ ...exceptionDraft, date: event.target.value })} /></Field>
-                  <Field label="Başlık"><input value={exceptionDraft.title} onChange={(event) => setExceptionDraft({ ...exceptionDraft, title: event.target.value })} placeholder="Bayram, bakım, yarım gün" /></Field>
+                  <Field label="Tarih" required><input required type="date" value={exceptionDraft.date} onChange={(event) => setExceptionDraft({ ...exceptionDraft, date: event.target.value })} /></Field>
+                  <Field label="Başlık" required><input required value={exceptionDraft.title} onChange={(event) => setExceptionDraft({ ...exceptionDraft, title: event.target.value })} placeholder="Bayram, bakım, yarım gün" /></Field>
                 </div>
                 <label className="check"><input checked={exceptionDraft.isClosed} type="checkbox" onChange={(event) => setExceptionDraft({ ...exceptionDraft, isClosed: event.target.checked })} /> Bu tarihte tamamen kapalı</label>
                 <div className="form-grid two">
@@ -1846,8 +1871,8 @@ function App() {
                 <button aria-label="Departman formunu kapat" className="grid-icon-button" type="button" onClick={() => setIsDepartmentFormOpen(false)}><X size={17} /></button>
               </header>
               <div className="form-drawer-body">
-                <Field label="Departman kodu"><input value={departmentDraft.code} onChange={(event) => setDepartmentDraft({ ...departmentDraft, code: event.target.value })} placeholder="support-tr" /></Field>
-                <Field label="Departman adı"><input value={departmentDraft.name} onChange={(event) => setDepartmentDraft({ ...departmentDraft, name: event.target.value })} placeholder="Türkçe Destek" /></Field>
+                <Field label="Departman kodu" required><input required value={departmentDraft.code} onChange={(event) => setDepartmentDraft({ ...departmentDraft, code: event.target.value })} placeholder="support-tr" /></Field>
+                <Field label="Departman adı" required><input required value={departmentDraft.name} onChange={(event) => setDepartmentDraft({ ...departmentDraft, name: event.target.value })} placeholder="Türkçe Destek" /></Field>
                 <Field label="Dil kodu"><input value={departmentDraft.languageCode} onChange={(event) => setDepartmentDraft({ ...departmentDraft, languageCode: event.target.value })} placeholder="tr-TR" /></Field>
                 <label className="check"><input checked={departmentDraft.isActive} type="checkbox" onChange={(event) => setDepartmentDraft({ ...departmentDraft, isActive: event.target.checked })} /> Departman aktif</label>
               </div>
@@ -1865,11 +1890,11 @@ function App() {
               </header>
               <div className="form-drawer-body">
                 <div className="form-grid two">
-                  <Field label="Kural adı"><input value={ruleDraft.name} onChange={(event) => setRuleDraft({ ...ruleDraft, name: event.target.value })} placeholder="Mesai dışı destek aktarımı" /></Field>
-                  <Field label="Öncelik"><input min="1" type="number" value={ruleDraft.priority} onChange={(event) => setRuleDraft({ ...ruleDraft, priority: Number(event.target.value) || 1 })} /></Field>
+                  <Field label="Kural adı" required><input required value={ruleDraft.name} onChange={(event) => setRuleDraft({ ...ruleDraft, name: event.target.value })} placeholder="Mesai dışı destek aktarımı" /></Field>
+                  <Field label="Öncelik" required><input min="1" required type="number" value={ruleDraft.priority} onChange={(event) => setRuleDraft({ ...ruleDraft, priority: Number(event.target.value) || 1 })} /></Field>
                   <Field label="Intent"><input value={ruleDraft.matchIntent} onChange={(event) => setRuleDraft({ ...ruleDraft, matchIntent: event.target.value })} placeholder="reservation" /></Field>
                   <Field label="Dil"><input value={ruleDraft.matchLanguageCode} onChange={(event) => setRuleDraft({ ...ruleDraft, matchLanguageCode: event.target.value })} placeholder="tr-TR" /></Field>
-                  <Field label="Aksiyon"><select value={ruleDraft.action} onChange={(event) => setRuleDraft({ ...ruleDraft, action: event.target.value })}><option value="AiAnswer">AI cevaplasın</option><option value="TransferToQueue">Canlı kuyruğa aktar</option><option value="CreateCallback">Geri arama kaydı</option><option value="PlayMessage">Mesaj oku</option><option value="Voicemail">Sesli mesaj al</option></select></Field>
+                  <Field label="Aksiyon" required><select required value={ruleDraft.action} onChange={(event) => setRuleDraft({ ...ruleDraft, action: event.target.value })}><option value="AiAnswer">AI cevaplasın</option><option value="TransferToQueue">Canlı kuyruğa aktar</option><option value="CreateCallback">Geri arama kaydı</option><option value="PlayMessage">Mesaj oku</option><option value="Voicemail">Sesli mesaj al</option></select></Field>
                   <Field label="Hedef departman"><select value={ruleDraft.targetDepartmentId} onChange={(event) => setRuleDraft({ ...ruleDraft, targetDepartmentId: event.target.value })}><option value="">Departman seçilmedi</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></Field>
                 </div>
                 <Field label="Okunacak mesaj"><textarea value={ruleDraft.message} onChange={(event) => setRuleDraft({ ...ruleDraft, message: event.target.value })} placeholder="Aksiyon mesaj okuyacaksa metni girin" /></Field>
@@ -1892,20 +1917,21 @@ function App() {
                 <button aria-label="Kullanıcı formunu kapat" className="grid-icon-button" type="button" onClick={() => setIsUserFormOpen(false)}><X size={17} /></button>
               </header>
               <div className="form-drawer-body">
-                <Field label="E-posta">
+                <Field label="E-posta" required>
                   <input
                     autoComplete="off"
                     disabled={editingUserAssignmentId !== null}
+                    required
                     type="email"
                     value={userDraft.email}
                     onChange={(event) => setUserDraft({ ...userDraft, email: event.target.value })}
                   />
                 </Field>
-                <Field label="Ad soyad / görünen ad">
-                  <input autoComplete="off" value={userDraft.displayName} onChange={(event) => setUserDraft({ ...userDraft, displayName: event.target.value })} />
+                <Field label="Ad soyad / görünen ad" required>
+                  <input autoComplete="off" required value={userDraft.displayName} onChange={(event) => setUserDraft({ ...userDraft, displayName: event.target.value })} />
                 </Field>
-                <Field label={editingUserAssignmentId ? 'Yeni şifre (değişmeyecekse boş)' : 'Geçici şifre'}>
-                  <input autoComplete="new-password" type="password" value={userDraft.password} onChange={(event) => setUserDraft({ ...userDraft, password: event.target.value })} />
+                <Field label={editingUserAssignmentId ? 'Yeni şifre (değişmeyecekse boş)' : 'Geçici şifre'} required={editingUserAssignmentId === null}>
+                  <input autoComplete="new-password" required={editingUserAssignmentId === null} type="password" value={userDraft.password} onChange={(event) => setUserDraft({ ...userDraft, password: event.target.value })} />
                 </Field>
                 <Field label="Firma rolü">
                   <select value={userDraft.companyRoleId} onChange={(event) => setUserDraft({ ...userDraft, companyRoleId: event.target.value })}>
@@ -1927,7 +1953,7 @@ function App() {
               </div>
               <footer className="form-drawer-footer">
                 <button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsUserFormOpen(false)}>Vazgeç</button>
-                <button className="save-button" disabled={isFormSaving || !userDraft.email.trim() || !userDraft.displayName.trim()} type="button" onClick={saveCompanyUser}>
+                <button className="save-button" disabled={isFormSaving || !userDraft.email.trim() || !userDraft.displayName.trim() || (editingUserAssignmentId === null && userDraft.password.length < 8)} type="button" onClick={saveCompanyUser}>
                   {isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} {editingUserAssignmentId ? 'Güncelle' : 'Kullanıcıyı ekle'}
                 </button>
               </footer>
@@ -1948,8 +1974,8 @@ function App() {
               </header>
               <div className="form-drawer-body">
                 <div className="form-grid two">
-                  <Field label="Rol kodu"><input value={roleDraft.code} onChange={(event) => setRoleDraft({ ...roleDraft, code: event.target.value })} placeholder="supervisor-tr" /></Field>
-                  <Field label="Rol adı"><input value={roleDraft.name} onChange={(event) => setRoleDraft({ ...roleDraft, name: event.target.value })} placeholder="Süpervizör" /></Field>
+                  <Field label="Rol kodu" required><input required value={roleDraft.code} onChange={(event) => setRoleDraft({ ...roleDraft, code: event.target.value })} placeholder="supervisor-tr" /></Field>
+                  <Field label="Rol adı" required><input required value={roleDraft.name} onChange={(event) => setRoleDraft({ ...roleDraft, name: event.target.value })} placeholder="Süpervizör" /></Field>
                 </div>
                 <Field label="Açıklama"><textarea value={roleDraft.description} onChange={(event) => setRoleDraft({ ...roleDraft, description: event.target.value })} /></Field>
                 <label className="check"><input checked={roleDraft.isActive} type="checkbox" onChange={(event) => setRoleDraft({ ...roleDraft, isActive: event.target.checked })} /> Rol aktif</label>
@@ -1988,10 +2014,10 @@ function PanelTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, required = false }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>{label}{required && <span aria-hidden="true" className="required-mark">*</span>}</span>
       {children}
     </label>
   );
@@ -2001,17 +2027,19 @@ function LoginField({
   action,
   icon,
   label,
+  required = false,
   children,
 }: {
   action?: React.ReactNode;
   icon: React.ReactNode;
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <label className="block">
       <span className={action ? 'mb-1 flex items-center justify-between gap-3' : 'mb-1 block'}>
-        <span className="block text-xs font-medium uppercase tracking-wider text-slate-400">{label}</span>
+        <span className="block text-xs font-medium uppercase tracking-wider text-slate-400">{label}{required && <span aria-hidden="true" className="required-mark">*</span>}</span>
         {action}
       </span>
       <div className="neon-border relative flex items-center rounded-lg border border-gray-700 bg-[#131b2f] transition-colors">
