@@ -918,7 +918,7 @@ function App() {
       can('calendar.view') ? callCenterApi.businessHours(companyId) : Promise.resolve([]),
       can('departments.view') ? callCenterApi.departments(companyId) : Promise.resolve([]),
       can('roles.view') ? callCenterApi.permissions(companyId) : Promise.resolve([]),
-      can('roles.view') ? callCenterApi.companyRoles(companyId) : Promise.resolve([]),
+      can('roles.view') || can('users.manage') ? callCenterApi.companyRoles(companyId) : Promise.resolve([]),
       can('ai.view') ? callCenterApi.aiAssistantProfile(companyId) : Promise.resolve(defaultAiProfile(companyId)),
     ]);
     setBusinessHours(hoursData);
@@ -1283,12 +1283,14 @@ function App() {
   }
 
   function resetUserDraft() {
+    const defaultRole = companyRoles.find((role) => role.isActive && role.code.toLowerCase() === 'agent')
+      ?? companyRoles.find((role) => role.isActive);
     setEditingUserAssignmentId(null);
     setUserDraft({
       email: '',
       displayName: '',
       password: '',
-      companyRoleId: '',
+      companyRoleId: defaultRole?.id.toString() ?? '',
       legacyRole: 'Agent',
       isUserActive: true,
       isAssignmentActive: true,
@@ -1296,7 +1298,7 @@ function App() {
   }
 
   async function saveCompanyUser() {
-    if (!selectedCompanyId || !userDraft.email.trim() || !userDraft.displayName.trim()) return;
+    if (!selectedCompanyId || !userDraft.email.trim() || !userDraft.displayName.trim() || !userDraft.companyRoleId) return;
     setStatus(editingUserAssignmentId ? 'Kullanıcı güncelleniyor' : 'Kullanıcı oluşturuluyor');
     setIsFormSaving(true);
     try {
@@ -2173,9 +2175,9 @@ function App() {
                 <Field label={editingUserAssignmentId ? 'Yeni şifre (değişmeyecekse boş)' : 'Geçici şifre'} required={editingUserAssignmentId === null}>
                   <input autoComplete="new-password" required={editingUserAssignmentId === null} type="password" value={userDraft.password} onChange={(event) => setUserDraft({ ...userDraft, password: event.target.value })} />
                 </Field>
-                <Field label="Firma rolü">
-                  <select value={userDraft.companyRoleId} onChange={(event) => setUserDraft({ ...userDraft, companyRoleId: event.target.value })}>
-                    <option value="">Özel rol seçilmedi</option>
+                <Field label="Firma rolü" required>
+                  <select required value={userDraft.companyRoleId} onChange={(event) => setUserDraft({ ...userDraft, companyRoleId: event.target.value })}>
+                    <option value="">Rol seçin</option>
                     {companyRoles.filter((role) => role.isActive).map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
                   </select>
                 </Field>
@@ -2193,7 +2195,7 @@ function App() {
               </div>
               <footer className="form-drawer-footer">
                 <button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsUserFormOpen(false)}>Vazgeç</button>
-                <button className="save-button" disabled={isFormSaving || !userDraft.email.trim() || !userDraft.displayName.trim() || (editingUserAssignmentId === null && userDraft.password.length < 8)} type="button" onClick={saveCompanyUser}>
+                <button className="save-button" disabled={isFormSaving || !userDraft.email.trim() || !userDraft.displayName.trim() || !userDraft.companyRoleId || (editingUserAssignmentId === null && userDraft.password.length < 8)} type="button" onClick={saveCompanyUser}>
                   {isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} {editingUserAssignmentId ? 'Güncelle' : 'Kullanıcıyı ekle'}
                 </button>
               </footer>
