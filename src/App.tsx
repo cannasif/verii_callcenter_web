@@ -602,6 +602,8 @@ function defaultAiProfile(companyId: number | null = null): AiAssistantProfile {
     isEnabled: false,
     provider: 'OpenAI',
     modelName: 'gpt-4.1-mini',
+    apiBaseUrl: 'https://api.openai.com/v1/',
+    credentialSecretReference: 'env://OPENAI_API_KEY',
     systemInstructions: '',
     greetingMessage: 'Merhaba, size nasıl yardımcı olabilirim?',
     fallbackMessage: 'Bu konuda net bir yanıt veremiyorum. Sizi bir temsilciye aktarıyorum.',
@@ -1139,6 +1141,8 @@ function App() {
         isEnabled: aiProfile.isEnabled,
         provider: aiProfile.provider,
         modelName: aiProfile.modelName,
+        apiBaseUrl: aiProfile.apiBaseUrl,
+        credentialSecretReference: aiProfile.credentialSecretReference,
         systemInstructions: aiProfile.systemInstructions || null,
         greetingMessage: aiProfile.greetingMessage || null,
         fallbackMessage: aiProfile.fallbackMessage || null,
@@ -2591,6 +2595,10 @@ function App() {
                     <Field label="Sağlayıcı" required><select disabled={!hasWorkspacePermission('ai.manage')} required value={aiProfile.provider} onChange={(event) => setAiProfile({ ...aiProfile, provider: event.target.value })}><option value="OpenAI">OpenAI</option><option value="Azure OpenAI">Azure OpenAI</option><option value="Custom">Özel sağlayıcı</option></select></Field>
                     <Field label="Model adı" required><input disabled={!hasWorkspacePermission('ai.manage')} required value={aiProfile.modelName} onChange={(event) => setAiProfile({ ...aiProfile, modelName: event.target.value })} placeholder="gpt-4.1-mini" /></Field>
                   </div>
+                  <div className="form-grid two">
+                    <Field label="AI API adresi" required><input disabled={!hasWorkspacePermission('ai.manage')} required type="url" value={aiProfile.apiBaseUrl} onChange={(event) => setAiProfile({ ...aiProfile, apiBaseUrl: event.target.value })} placeholder="https://api.openai.com/v1/" /></Field>
+                    <Field label="API anahtarı secret referansı" required><input disabled={!hasWorkspacePermission('ai.manage')} required value={aiProfile.credentialSecretReference} onChange={(event) => setAiProfile({ ...aiProfile, credentialSecretReference: event.target.value })} placeholder="env://OPENAI_API_KEY" /></Field>
+                  </div>
                   <Field label="Karşılama mesajı"><textarea disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.greetingMessage ?? ''} onChange={(event) => setAiProfile({ ...aiProfile, greetingMessage: event.target.value })} /></Field>
                   <Field label="Sistem talimatı"><textarea className="ai-instructions" disabled={!hasWorkspacePermission('ai.manage')} value={aiProfile.systemInstructions ?? ''} onChange={(event) => setAiProfile({ ...aiProfile, systemInstructions: event.target.value })} placeholder="Asistanın tonu, yapabilecekleri, yapamayacakları ve kaynak kullanma kuralları." /></Field>
                   <p className="ai-secret-note">Sağlayıcı anahtarı burada tutulmaz; canlı bağlantıda sunucu ortam değişkeni veya gizli anahtar kasası kullanılır.</p>
@@ -2615,7 +2623,7 @@ function App() {
               </div>
             )}
 
-            {hasWorkspacePermission('ai.manage') && <div className="ai-profile-footer"><button className="save-button" disabled={isAiProfileLoading || isAiProfileSaving || !selectedCompanyId || !aiProfile.provider.trim() || !aiProfile.modelName.trim() || aiProfile.minimumConfidence < 0 || aiProfile.minimumConfidence > 1 || aiProfile.maxFallbackAttempts < 0 || aiProfile.maxFallbackAttempts > 5} type="button" onClick={saveAiProfile}>{isAiProfileSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} AI politikasını kaydet</button></div>}
+            {hasWorkspacePermission('ai.manage') && <div className="ai-profile-footer"><button className="save-button" disabled={isAiProfileLoading || isAiProfileSaving || !selectedCompanyId || !aiProfile.provider.trim() || !aiProfile.modelName.trim() || !aiProfile.apiBaseUrl.trim() || !aiProfile.credentialSecretReference.trim() || aiProfile.minimumConfidence < 0 || aiProfile.minimumConfidence > 1 || aiProfile.maxFallbackAttempts < 0 || aiProfile.maxFallbackAttempts > 5} type="button" onClick={saveAiProfile}>{isAiProfileSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} AI politikasını kaydet</button></div>}
           </section>}
 
           {activeSection === 'users' && <section className="panel company-panel">

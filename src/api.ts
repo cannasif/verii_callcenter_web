@@ -179,6 +179,8 @@ export interface AiAssistantProfile {
   isEnabled: boolean;
   provider: string;
   modelName: string;
+  apiBaseUrl: string;
+  credentialSecretReference: string;
   systemInstructions?: string | null;
   greetingMessage?: string | null;
   fallbackMessage?: string | null;
