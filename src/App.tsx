@@ -1,5 +1,14 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { HugeiconsIcon } from '@hugeicons/react';
+import {
+  Call02Icon,
+  Globe02Icon,
+  InstagramIcon,
+  Linkedin01Icon,
+  NewTwitterIcon,
+  WhatsappIcon,
+} from '@hugeicons/core-free-icons';
 import {
   Building2,
   Bot,
@@ -11,11 +20,10 @@ import {
   Eye,
   EyeOff,
   GitBranch,
-  Globe2,
+  Globe,
   Headphones,
   History,
   Lock,
-  LogIn,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -27,12 +35,18 @@ import {
   RefreshCw,
   Rocket,
   Save,
+  Search,
   ShieldCheck,
   SlidersHorizontal,
+  Sun,
+  Moon,
   UserRound,
   X,
 } from 'lucide-react';
 import './App.css';
+import './app-themes.css';
+import callCenterLogo from './assets/v3rii-callcenter.png';
+import v3Logo from './assets/v3logo.png';
 import { PagedGrid, type PagedGridColumn } from './components/PagedGrid';
 import {
   callCenterApi,
@@ -66,6 +80,29 @@ import {
 } from './api';
 
 const dayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+type AppTheme = 'space' | 'retro' | 'classic';
+type AppMode = 'dark' | 'light';
+const APP_THEME_STORAGE_KEY = 'v3rii_app_theme';
+const APP_MODE_STORAGE_KEY = 'v3rii_app_mode';
+const APP_EXPANDED_GROUPS_KEY = 'v3rii_expanded_groups';
+const appThemeOptions: { id: AppTheme; label: string }[] = [
+  { id: 'space', label: 'Uzay' },
+  { id: 'retro', label: 'Retro' },
+  { id: 'classic', label: 'Klasik' },
+];
+
+function readStoredAppTheme(): AppTheme {
+  const value = localStorage.getItem(APP_THEME_STORAGE_KEY);
+  if (value === 'space' || value === 'retro' || value === 'classic') return value;
+  return 'space';
+}
+
+function readStoredAppMode(): AppMode {
+  const value = localStorage.getItem(APP_MODE_STORAGE_KEY);
+  if (value === 'dark' || value === 'light') return value;
+  return 'dark';
+}
+
 const actionLabels: Record<string, string> = {
   AiAnswer: 'AI cevaplasın',
   TransferToQueue: 'Canlı kuyruğa aktar',
@@ -96,6 +133,25 @@ type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
 type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'queues' | 'transfer-targets' | 'agent-status' | 'rules' | 'ai-profile' | 'simulator' | 'call-sessions' | 'logs' | 'users' | 'roles';
 type WorkspaceGroup = 'company-management' | 'operation' | 'ai-operation' | 'monitoring' | 'access-management';
+
+const defaultExpandedWorkspaceGroups: Record<WorkspaceGroup, boolean> = {
+  'company-management': false,
+  operation: false,
+  'ai-operation': false,
+  monitoring: false,
+  'access-management': false,
+};
+
+function readStoredExpandedGroups(): Record<WorkspaceGroup, boolean> {
+  try {
+    const raw = localStorage.getItem(APP_EXPANDED_GROUPS_KEY);
+    if (!raw) return { ...defaultExpandedWorkspaceGroups };
+    const parsed = JSON.parse(raw) as Partial<Record<WorkspaceGroup, boolean>>;
+    return { ...defaultExpandedWorkspaceGroups, ...parsed };
+  } catch {
+    return { ...defaultExpandedWorkspaceGroups };
+  }
+}
 
 const workspacePaths: Record<WorkspaceSection, string> = {
   company: '/company-management/company-profile',
@@ -157,6 +213,8 @@ const loginTranslations: Record<LoginLanguageCode, {
   securityNetwork: string;
   language: string;
   required: string;
+  emailRequired: string;
+  passwordRequired: string;
   companyLoadFailed: string;
   checking: string;
   invalidLogin: string;
@@ -166,27 +224,29 @@ const loginTranslations: Record<LoginLanguageCode, {
 }> = {
   tr: {
     brandSuffix: 'COMMS',
-    heroLine1: 'Müşteri',
-    heroLine2: 'İletişim',
-    heroLine3: 'Merkezi',
+    heroLine1: 'MÜŞTERİ',
+    heroLine2: 'İLETİŞİM',
+    heroLine3: 'MERKEZİ',
     heroText: 'Temsilci ve yönetici portalına erişmek için firma ve kullanıcı bilgilerinizi doğrulayın.',
-    serverStatus: 'SUNUCU DURUMU',
+    serverStatus: 'ANA SİSTEM DURUMU',
     online: 'ÇEVRİMİÇİ',
     securityProtocol: 'GÜVENLİK PROTOKOLÜ',
     active: 'AKTİF',
-    title: 'Temsilci Girişi',
-    subtitle: 'Devam etmek için operatör bilgilerinizi giriniz.',
-    company: 'Firma',
-    companyPlaceholder: 'Super admin / firma seçmeden giriş',
-    operator: 'Operatör ID / E-posta',
+    title: 'Sisteme Giriş',
+    subtitle: 'Devam etmek için doğrulama sağlayın.',
+    company: 'Hedef Modül',
+    companyPlaceholder: 'Super admin / modül seçmeden giriş',
+    operator: 'Operatör ID / E-Posta',
     operatorPlaceholder: 'admin@v3rii.com',
-    password: 'Erişim Kodu',
-    forgotCode: 'Kodu unuttum',
-    remember: 'Terminali hatırla',
+    password: 'Güvenlik Kodu',
+    forgotCode: 'Anahtarı Yenile',
+    remember: 'Bağlantıyı Koru',
     submit: 'Sisteme Bağlan',
     securityNetwork: 'V3RII Güvenlik Ağı © 2026',
     language: 'Dil',
     required: 'E-posta ve şifre zorunlu',
+    emailRequired: 'E-posta / operatör ID zorunlu',
+    passwordRequired: 'Güvenlik kodu zorunlu',
     companyLoadFailed: 'Firma listesi yüklenemedi',
     checking: 'Giriş kontrol ediliyor',
     invalidLogin: 'E-posta, şifre veya firma seçimi hatalı',
@@ -217,6 +277,8 @@ const loginTranslations: Record<LoginLanguageCode, {
     securityNetwork: 'V3RII Security Network © 2026',
     language: 'Language',
     required: 'Email and password are required',
+    emailRequired: 'Operator ID / email is required',
+    passwordRequired: 'Access code is required',
     companyLoadFailed: 'Company list could not be loaded',
     checking: 'Checking credentials',
     invalidLogin: 'Email, password or company selection is invalid',
@@ -247,6 +309,8 @@ const loginTranslations: Record<LoginLanguageCode, {
     securityNetwork: 'V3RII Sicherheitsnetz © 2026',
     language: 'Sprache',
     required: 'E-Mail und Passwort sind erforderlich',
+    emailRequired: 'Operator-ID / E-Mail ist erforderlich',
+    passwordRequired: 'Zugangscode ist erforderlich',
     companyLoadFailed: 'Firmenliste konnte nicht geladen werden',
     checking: 'Anmeldung wird geprüft',
     invalidLogin: 'E-Mail, Passwort oder Firma ist ungültig',
@@ -277,6 +341,8 @@ const loginTranslations: Record<LoginLanguageCode, {
     securityNetwork: 'Réseau de sécurité V3RII © 2026',
     language: 'Langue',
     required: 'E-mail et mot de passe obligatoires',
+    emailRequired: 'ID opérateur / e-mail obligatoire',
+    passwordRequired: 'Code d’accès obligatoire',
     companyLoadFailed: 'Liste des sociétés indisponible',
     checking: 'Vérification en cours',
     invalidLogin: 'E-mail, mot de passe ou société invalide',
@@ -307,6 +373,8 @@ const loginTranslations: Record<LoginLanguageCode, {
     securityNetwork: 'Red de Seguridad V3RII © 2026',
     language: 'Idioma',
     required: 'Email y contraseña son obligatorios',
+    emailRequired: 'ID de operador / email obligatorio',
+    passwordRequired: 'Código de acceso obligatorio',
     companyLoadFailed: 'No se pudo cargar la lista de empresas',
     checking: 'Verificando acceso',
     invalidLogin: 'Email, contraseña o empresa inválidos',
@@ -337,6 +405,8 @@ const loginTranslations: Record<LoginLanguageCode, {
     securityNetwork: 'Rete Sicurezza V3RII © 2026',
     language: 'Lingua',
     required: 'Email e password obbligatorie',
+    emailRequired: 'ID operatore / email obbligatoria',
+    passwordRequired: 'Codice di accesso obbligatorio',
     companyLoadFailed: 'Elenco aziende non caricato',
     checking: 'Verifica accesso',
     invalidLogin: 'Email, password o azienda non validi',
@@ -367,6 +437,8 @@ const loginTranslations: Record<LoginLanguageCode, {
     securityNetwork: 'شبكة أمان V3RII © 2026',
     language: 'اللغة',
     required: 'البريد وكلمة المرور مطلوبان',
+    emailRequired: 'معرّف المشغّل / البريد مطلوب',
+    passwordRequired: 'رمز الوصول مطلوب',
     companyLoadFailed: 'تعذر تحميل قائمة الشركات',
     checking: 'جار التحقق',
     invalidLogin: 'البريد أو كلمة المرور أو الشركة غير صحيحة',
@@ -397,6 +469,8 @@ const loginTranslations: Record<LoginLanguageCode, {
     securityNetwork: 'Сеть безопасности V3RII © 2026',
     language: 'Язык',
     required: 'Email и пароль обязательны',
+    emailRequired: 'ID оператора / email обязателен',
+    passwordRequired: 'Код доступа обязателен',
     companyLoadFailed: 'Не удалось загрузить компании',
     checking: 'Проверка входа',
     invalidLogin: 'Неверный email, пароль или компания',
@@ -427,6 +501,8 @@ const loginTranslations: Record<LoginLanguageCode, {
     securityNetwork: 'Rede de Segurança V3RII © 2026',
     language: 'Idioma',
     required: 'Email e senha são obrigatórios',
+    emailRequired: 'ID do operador / e-mail obrigatório',
+    passwordRequired: 'Código de acesso obrigatório',
     companyLoadFailed: 'Lista de empresas não carregada',
     checking: 'Verificando acesso',
     invalidLogin: 'Email, senha ou empresa inválidos',
@@ -457,6 +533,8 @@ const loginTranslations: Record<LoginLanguageCode, {
     securityNetwork: 'V3RII Beveiligingsnetwerk © 2026',
     language: 'Taal',
     required: 'E-mail en wachtwoord zijn verplicht',
+    emailRequired: 'Operator-ID / e-mail is verplicht',
+    passwordRequired: 'Toegangscode is verplicht',
     companyLoadFailed: 'Bedrijven konden niet geladen worden',
     checking: 'Login controleren',
     invalidLogin: 'E-mail, wachtwoord of bedrijf ongeldig',
@@ -535,13 +613,8 @@ function App() {
   const [authContext, setAuthContext] = useState<AuthContext | null>(null);
   const [loginCompanies, setLoginCompanies] = useState<AuthCompany[]>([]);
   const [isLoginCompaniesLoading, setIsLoginCompaniesLoading] = useState(false);
-  const [expandedWorkspaceGroups, setExpandedWorkspaceGroups] = useState<Record<WorkspaceGroup, boolean>>({
-    'company-management': true,
-    operation: true,
-    'ai-operation': true,
-    monitoring: true,
-    'access-management': true,
-  });
+  const [expandedWorkspaceGroups, setExpandedWorkspaceGroups] = useState<Record<WorkspaceGroup, boolean>>(() => readStoredExpandedGroups());
+  const [navSearch, setNavSearch] = useState('');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const [loginDraft, setLoginDraft] = useState({
@@ -579,10 +652,20 @@ function App() {
   const [gridRefreshVersion, setGridRefreshVersion] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [appTheme, setAppTheme] = useState<AppTheme>(() => readStoredAppTheme());
+  const [appMode, setAppMode] = useState<AppMode>(() => readStoredAppMode());
   const [decision, setDecision] = useState<DecisionResult | null>(null);
   const [status, setStatus] = useState('Hazır');
+  const [loginStatusTone, setLoginStatusTone] = useState<'neutral' | 'info' | 'error' | 'success'>('neutral');
+  const [loginFieldErrors, setLoginFieldErrors] = useState({
+    company: false,
+    email: false,
+    password: false,
+  });
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isXComingSoonOpen, setIsXComingSoonOpen] = useState(false);
   const [loginLanguage, setLoginLanguage] = useState<LoginLanguageCode>('tr');
+  const xComingSoonRef = useRef<HTMLDivElement | null>(null);
   const [exceptionDraft, setExceptionDraft] = useState({
     date: new Date().toISOString().slice(0, 10),
     title: '',
@@ -767,6 +850,7 @@ function App() {
     if (definition) {
       setExpandedWorkspaceGroups((groups) => ({ ...groups, [definition.group]: true }));
     }
+    setNavSearch('');
     navigate(workspacePaths[section]);
     setIsMobileSidebarOpen(false);
   }
@@ -781,6 +865,7 @@ function App() {
         .then(setLoginCompanies)
         .catch(() => {
           setLoginCompanies([]);
+          setLoginStatusTone('error');
           setStatus(loginText.companyLoadFailed);
         })
         .finally(() => setIsLoginCompaniesLoading(false));
@@ -831,6 +916,31 @@ function App() {
   }, [isUserMenuOpen]);
 
   useEffect(() => {
+    if (!isXComingSoonOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!xComingSoonRef.current?.contains(event.target as Node)) {
+        setIsXComingSoonOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [isXComingSoonOpen]);
+
+  useEffect(() => {
+    localStorage.setItem(APP_THEME_STORAGE_KEY, appTheme);
+  }, [appTheme]);
+
+  useEffect(() => {
+    localStorage.setItem(APP_MODE_STORAGE_KEY, appMode);
+  }, [appMode]);
+
+  useEffect(() => {
+    localStorage.setItem(APP_EXPANDED_GROUPS_KEY, JSON.stringify(expandedWorkspaceGroups));
+  }, [expandedWorkspaceGroups]);
+
+  useEffect(() => {
     if (!selectedCompany) return;
     setCompanyDraft({
       code: selectedCompany.code,
@@ -854,6 +964,7 @@ function App() {
   }, [selectedCompany]);
 
   async function bootstrap() {
+    setLoginStatusTone('info');
     setStatus('Oturum bağlamı yükleniyor');
     const context = await callCenterApi.authContext();
     setAuthContext(context);
@@ -861,17 +972,37 @@ function App() {
     await refreshCompanies(context);
   }
 
+  function clearLoginFieldError(field: 'company' | 'email' | 'password') {
+    setLoginFieldErrors((current) => (current[field] ? { ...current, [field]: false } : current));
+  }
+
   async function login(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
 
-    if (!loginDraft.email.trim() || !loginDraft.password.trim()) {
-      setStatus(loginText.required);
+    const emailEmpty = !loginDraft.email.trim();
+    const passwordEmpty = !loginDraft.password.trim();
+    if (emailEmpty || passwordEmpty) {
+      setLoginFieldErrors({
+        company: false,
+        email: emailEmpty,
+        password: passwordEmpty,
+      });
+      setLoginStatusTone('error');
+      setStatus(
+        emailEmpty && passwordEmpty
+          ? loginText.required
+          : emailEmpty
+            ? loginText.emailRequired
+            : loginText.passwordRequired,
+      );
       return;
     }
 
     let response;
     const loginStartedAt = performance.now();
     try {
+      setLoginFieldErrors({ company: false, email: false, password: false });
+      setLoginStatusTone('info');
       setStatus(loginText.checking);
       response = await callCenterApi.login({
         email: loginDraft.email,
@@ -879,6 +1010,8 @@ function App() {
         companyId: loginDraft.companyId ? Number(loginDraft.companyId) : null,
       });
     } catch {
+      setLoginFieldErrors({ company: false, email: true, password: true });
+      setLoginStatusTone('error');
       setStatus(loginText.invalidLogin);
       return;
     }
@@ -886,11 +1019,20 @@ function App() {
     if (response.requiresCompanySelection) {
       setLoginCompanies(response.companies);
       setLoginDraft((draft) => ({ ...draft, companyId: draft.companyId || response.companies[0]?.id.toString() || '' }));
+      setLoginFieldErrors({ company: true, email: false, password: false });
+      setLoginStatusTone('error');
       setStatus(response.message ?? loginText.companyRequired);
       return;
     }
 
     if (!response.success || !response.token || !response.context) {
+      const needsCompany = Boolean(response.message?.toLocaleLowerCase('tr-TR').includes('firma'));
+      setLoginFieldErrors({
+        company: needsCompany,
+        email: true,
+        password: true,
+      });
+      setLoginStatusTone('error');
       setStatus(response.message ?? loginText.loginFailed);
       return;
     }
@@ -900,6 +1042,8 @@ function App() {
     setSelectedCompanyId(response.context.selectedCompanyId ?? response.context.companies[0]?.id ?? null);
     setCompanies(authCompaniesToCompanies(response.context.companies));
     setLoginCompanies([]);
+    setLoginFieldErrors({ company: false, email: false, password: false });
+    setLoginStatusTone('success');
     setStatus(`${loginText.loginSuccess} (${Math.round(performance.now() - loginStartedAt)} ms)`);
     void refreshCompanies(response.context, true);
   }
@@ -1448,65 +1592,135 @@ function App() {
   }
 
   if (!authContext) {
+    const passwordRevealLabel = loginLanguage === 'tr'
+      ? (isPasswordVisible ? 'GİZLE' : 'GÖSTER')
+      : (isPasswordVisible ? 'HIDE' : 'SHOW');
+
     return (
       <main
         className={
           isLoginRtl
-            ? 'login-rtl relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050914] px-4 py-8 text-slate-200'
-            : 'relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050914] px-4 py-8 text-slate-200'
+            ? 'login-screen login-rtl'
+            : 'login-screen'
         }
         dir={isLoginRtl ? 'rtl' : 'ltr'}
       >
         <SpaceBackground />
-        <WanderingRocket />
+        <div className="login-atmosphere" aria-hidden="true">
+          <div className="login-stars" />
+          <div className="login-twinkles">
+            <span /><span /><span /><span /><span /><span />
+            <span /><span /><span /><span /><span /><span />
+          </div>
+          <div className="login-dust" />
+          <div className="login-grid-floor" />
 
-        <section className="glass-panel relative z-10 grid w-full max-w-4xl overflow-hidden rounded-2xl md:grid-cols-2">
-          <div className="relative hidden overflow-hidden border-r border-blue-500/20 bg-gradient-to-br from-blue-900/40 to-purple-900/40 p-10 md:flex md:min-h-[620px] md:flex-col md:justify-between">
-            <div className="pointer-events-none absolute -bottom-20 -left-20 opacity-20">
-              <PlanetMark />
+          <div className="login-galaxy login-galaxy-far-1" />
+          <div className="login-galaxy login-galaxy-far-2" />
+          <div className="login-galaxy login-galaxy-mid-1" />
+          <div className="login-galaxy login-galaxy-mid-2" />
+          <div className="login-galaxy login-galaxy-near-1" />
+          <div className="login-galaxy login-galaxy-near-2" />
+
+          <div className="login-world login-world-saturn">
+            <div className="login-saturn-planet" />
+            <div className="login-saturn-ring" />
+          </div>
+          <div className="login-world login-world-cyan">
+            <div className="login-soft-planet login-soft-planet-cyan" />
+            <div className="login-dotted-orbit login-dotted-orbit-lg" />
+            <div className="login-dotted-orbit login-dotted-orbit-sm" />
+          </div>
+          <div className="login-world login-world-pink">
+            <div className="login-soft-planet login-soft-planet-pink" />
+            <div className="login-dotted-orbit login-dotted-orbit-md" />
+          </div>
+          <div className="login-world login-world-ice">
+            <div className="login-soft-planet login-soft-planet-ice" />
+          </div>
+          <div className="login-world login-world-amber">
+            <div className="login-soft-planet login-soft-planet-amber" />
+            <div className="login-dotted-orbit login-dotted-orbit-xs" />
+          </div>
+
+          <div className="login-soft-planet login-soft-planet-tiny" />
+          <div className="login-soft-planet login-soft-planet-far-a" />
+          <div className="login-soft-planet login-soft-planet-far-b" />
+          <div className="login-soft-planet login-soft-planet-far-c" />
+          <div className="login-soft-planet login-soft-planet-far-d" />
+          <div className="login-soft-planet login-soft-planet-far-e" />
+
+          <div className="login-flyby login-flyby-ship">
+            <Rocket size={28} strokeWidth={1.5} />
+          </div>
+          <div className="login-flyby login-flyby-ufo">
+            <svg viewBox="0 0 64 40" width="36" height="22" fill="none" aria-hidden="true">
+              <ellipse cx="32" cy="24" rx="22" ry="7" fill="currentColor" opacity="0.35" />
+              <ellipse cx="32" cy="22" rx="18" ry="5" fill="currentColor" opacity="0.55" />
+              <path d="M20 18 C22 10 42 10 44 18" stroke="currentColor" strokeWidth="1.5" fill="currentColor" opacity="0.45" />
+              <circle cx="32" cy="14" r="6" fill="currentColor" opacity="0.7" />
+              <circle cx="24" cy="24" r="1.4" fill="#67e8f9" />
+              <circle cx="32" cy="25" r="1.4" fill="#67e8f9" />
+              <circle cx="40" cy="24" r="1.4" fill="#67e8f9" />
+            </svg>
+          </div>
+          <div className="login-scanlines" />
+        </div>
+
+        <div className="login-stage">
+        <section className="login-panel">
+          <div className="login-panel-brand">
+            <div className="login-orbit" aria-hidden="true">
+              <div className="login-orbit-ring login-orbit-ring-outer">
+                <span className="login-orbit-body login-orbit-body-outer" />
+              </div>
+              <div className="login-orbit-ring login-orbit-ring-mid">
+                <span className="login-orbit-body login-orbit-body-mid" />
+              </div>
+              <div className="login-orbit-core" />
             </div>
 
-            <div className="relative z-10">
-              <div className="mb-8 flex items-center gap-3">
-                <Rocket className="shuttle-anim text-blue-400 drop-shadow-[0_0_12px_rgba(96,165,250,0.75)]" size={34} />
-                <h2 className="brand-font text-2xl font-bold tracking-widest text-white">
-                  V3RII<span className="text-blue-300">{loginText.brandSuffix}</span>
-                </h2>
+            <div className="login-brand-inner">
+              <div className="login-brand-logos">
+                <img alt="V3RII Call Center" className="login-logo-callcenter" src={callCenterLogo} />
               </div>
-              <h1 className="brand-font text-4xl font-bold leading-tight text-white">
-                {loginText.heroLine1}
-                <br />
-                {loginText.heroLine2}
-                <br />
-                <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">{loginText.heroLine3}</span>
-              </h1>
-              <p className="mt-5 max-w-xs text-sm leading-6 text-gray-400">
-                {loginText.heroText}
-              </p>
-            </div>
 
-            <div className="relative z-10 space-y-3 font-mono text-xs">
-              <div className="flex items-center justify-between rounded border border-gray-700/50 bg-black/30 p-2">
-                <span className="text-gray-400">{loginText.serverStatus}</span>
-                <span className="flex items-center text-green-400">
-                  <span className="mr-2 h-2 w-2 animate-pulse rounded-full bg-green-500 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
-                  {loginText.online}
-                </span>
+              <div className="login-brand-copy">
+                <h1 className="login-hero-title">
+                  {loginText.heroLine1}
+                  <br />
+                  {loginText.heroLine2}
+                  <br />
+                  <span className="login-hero-accent">{loginText.heroLine3}_</span>
+                </h1>
+                <p className="login-hero-copy">
+                  {loginText.heroText}
+                </p>
               </div>
-              <div className="flex items-center justify-between rounded border border-gray-700/50 bg-black/30 p-2">
-                <span className="text-gray-400">{loginText.securityProtocol}</span>
-                <span className="text-blue-400">{loginText.active} (V4.2)</span>
+
+              <div className="login-status-stack">
+                <div className="login-status-row login-status-row-pink">
+                  <span>{loginText.serverStatus}</span>
+                  <span className="login-status-value login-status-value-pink">
+                    <span className="login-status-dot" />
+                    {loginText.online}
+                  </span>
+                </div>
+                <div className="login-status-row login-status-row-cyan">
+                  <span>{loginText.securityProtocol}</span>
+                  <span className="login-status-value login-status-value-cyan">AKTİF KALKAN (V3)</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex min-h-[620px] flex-col justify-center bg-[#0b1120]/80 p-8 md:p-12">
-            <div className="mb-6 flex justify-end">
-              <div className="w-full max-w-72">
+          <div className="login-panel-form">
+            <div className="login-lang-wrap">
+              <div className="login-lang-select">
                 <CustomSelect
                   compact
-                  icon={<Globe2 size={15} />}
-                  label={loginText.language}
+                  icon={<Globe size={12} />}
+                  label={`${loginText.language}:`}
                   onChange={(value) => setLoginLanguage(value as LoginLanguageCode)}
                   options={languageOptions}
                   value={loginLanguage}
@@ -1514,240 +1728,378 @@ function App() {
               </div>
             </div>
 
-            <div className="mb-8 flex items-center justify-center gap-2 md:hidden">
-              <Rocket className="shuttle-anim text-blue-400" size={26} />
-              <h2 className="brand-font text-xl font-bold tracking-widest text-white">
-                V3RII<span className="text-blue-300">{loginText.brandSuffix}</span>
+            <div className="login-form-head">
+              <h2 className="login-form-title">
+                {loginText.title}
+                <span className="login-cursor" aria-hidden="true" />
               </h2>
+              <p className="login-form-subtitle">{loginText.subtitle}</p>
             </div>
 
-            <h3 className="brand-font neon-text text-2xl font-semibold text-white">{loginText.title}</h3>
-            <p className="mb-8 mt-2 text-sm text-gray-400">{loginText.subtitle}</p>
-
-            <form className="space-y-6" onSubmit={(event) => void login(event)}>
-              <LoginField icon={<Building2 size={17} />} label={loginText.company}>
+            <form className="login-form-fields" noValidate onSubmit={(event) => void login(event)}>
+              <LoginField
+                icon={<Globe size={18} />}
+                invalid={loginFieldErrors.company}
+                label={loginText.company}
+              >
                 <CustomSelect
                   isLoading={isLoginCompaniesLoading}
                   loadingText="Yükleniyor"
-                  onChange={(value) => setLoginDraft({ ...loginDraft, companyId: value })}
+                  onChange={(value) => {
+                    clearLoginFieldError('company');
+                    setLoginDraft({ ...loginDraft, companyId: value });
+                  }}
                   options={companyOptions}
                   value={loginDraft.companyId}
                 />
               </LoginField>
 
-              <LoginField required icon={<UserRound size={17} />} label={loginText.operator}>
+              <LoginField
+                required
+                icon={<UserRound size={18} />}
+                invalid={loginFieldErrors.email}
+                label={loginText.operator}
+              >
                 <input
+                  aria-invalid={loginFieldErrors.email}
                   className="login-control"
-                  required
                   placeholder={loginText.operatorPlaceholder}
                   value={loginDraft.email}
-                  onChange={(event) => setLoginDraft({ ...loginDraft, email: event.target.value })}
+                  onChange={(event) => {
+                    clearLoginFieldError('email');
+                    setLoginDraft({ ...loginDraft, email: event.target.value });
+                  }}
                 />
               </LoginField>
 
               <LoginField
                 action={
-                  <button className="text-xs text-blue-400 transition-colors hover:text-blue-300" type="button">
+                  <button className="login-forgot-link" type="button">
                     {loginText.forgotCode}
                   </button>
                 }
-                icon={<Lock size={17} />}
+                icon={<Lock size={18} />}
+                invalid={loginFieldErrors.password}
                 label={loginText.password}
                 required
               >
                 <input
+                  aria-invalid={loginFieldErrors.password}
                   className="login-control login-control-password"
                   placeholder="••••••••"
-                  required
                   type={isPasswordVisible ? 'text' : 'password'}
                   value={loginDraft.password}
-                  onChange={(event) => setLoginDraft({ ...loginDraft, password: event.target.value })}
+                  onChange={(event) => {
+                    clearLoginFieldError('password');
+                    setLoginDraft({ ...loginDraft, password: event.target.value });
+                  }}
                 />
                 <button
                   aria-label={isPasswordVisible ? 'Şifreyi gizle' : 'Şifreyi göster'}
-                  className="login-password-toggle absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition-colors hover:text-slate-200"
+                  className="login-password-toggle"
                   type="button"
                   onClick={() => setIsPasswordVisible((value) => !value)}
                 >
-                  {isPasswordVisible ? <EyeOff size={17} /> : <Eye size={17} />}
+                  <span className="login-password-toggle-label">{passwordRevealLabel}</span>
+                  {isPasswordVisible ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </LoginField>
 
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-400">
-                <input className="login-checkbox" type="checkbox" />
-                <span className="select-none">{loginText.remember}</span>
+              <label className="login-remember">
+                <input className="login-remember-input" type="checkbox" />
+                <span className="login-remember-track" aria-hidden="true">
+                  <span className="login-remember-thumb" />
+                </span>
+                <span className="login-remember-text">{loginText.remember}</span>
               </label>
 
-              <button
-                className="login-btn brand-font mt-4 flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold uppercase tracking-wider text-white"
-                type="submit"
-              >
-                <span>{loginText.submit}</span>
-                <LogIn size={17} />
-              </button>
+              <div className="login-submit-wrap">
+                <button className="login-btn" type="submit">
+                  <span className="login-btn-fill" aria-hidden="true" />
+                  <span className="login-btn-content">
+                    {loginText.submit}
+                    <Rocket size={18} />
+                  </span>
+                </button>
+              </div>
             </form>
 
-            <div className="mt-4 min-h-11 rounded border border-blue-400/20 bg-blue-950/20 p-3 text-center text-sm text-blue-200">
-              {status}
-            </div>
+            {status && status !== 'Hazır' ? (
+              <div
+                className={
+                  loginStatusTone === 'error'
+                    ? 'login-status-message login-status-message-error'
+                    : loginStatusTone === 'success'
+                      ? 'login-status-message login-status-message-success'
+                      : 'login-status-message'
+                }
+                role={loginStatusTone === 'error' ? 'alert' : 'status'}
+              >
+                {status}
+              </div>
+            ) : null}
 
-            <div className="mt-12 text-center">
-              <p className="inline-flex items-center gap-1 font-mono text-xs text-slate-500">
-                <ShieldCheck size={13} /> {loginText.securityNetwork}
+            <div className="login-footer-wrap">
+              <p className="login-footer">
+                <ShieldCheck size={10} /> {loginText.securityNetwork}
               </p>
             </div>
           </div>
         </section>
+
+        <nav aria-label="V3RII iletişim" className="login-socials">
+          <a
+            aria-label="V3RII website"
+            className="login-social-link"
+            href="https://v3rii.com/"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <HugeiconsIcon icon={Globe02Icon} size={18} strokeWidth={1.6} />
+          </a>
+          <a
+            aria-label="Telefon +90 507 710 87 61"
+            className="login-social-link"
+            href="tel:+905077108761"
+          >
+            <HugeiconsIcon icon={Call02Icon} size={18} strokeWidth={1.6} />
+          </a>
+          <a
+            aria-label="WhatsApp +90 507 012 30 18"
+            className="login-social-link"
+            href="https://wa.me/905070123018"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <HugeiconsIcon icon={WhatsappIcon} size={18} strokeWidth={1.6} />
+          </a>
+          <a
+            aria-label="Instagram"
+            className="login-social-link"
+            href="https://www.instagram.com/v3riiteknoloji/"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <HugeiconsIcon icon={InstagramIcon} size={18} strokeWidth={1.6} />
+          </a>
+          <a
+            aria-label="LinkedIn"
+            className="login-social-link"
+            href="https://www.linkedin.com/company/v3ri%CC%87i%CC%87-teknoloji%CC%87/"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <HugeiconsIcon icon={Linkedin01Icon} size={18} strokeWidth={1.6} />
+          </a>
+          <div className="login-social-x" ref={xComingSoonRef}>
+            <button
+              aria-expanded={isXComingSoonOpen}
+              aria-label="X"
+              className="login-social-link"
+              type="button"
+              onClick={() => setIsXComingSoonOpen((open) => !open)}
+            >
+              <HugeiconsIcon icon={NewTwitterIcon} size={18} strokeWidth={1.6} />
+            </button>
+            {isXComingSoonOpen ? (
+              <span className="login-social-soon" role="status">
+                {loginLanguage === 'tr' ? 'Çok yakında' : 'Coming soon'}
+              </span>
+            ) : null}
+          </div>
+        </nav>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className={`app-shell${isSidebarCollapsed ? ' sidebar-collapsed' : ''}${isMobileSidebarOpen ? ' mobile-nav-open' : ''}`}>
+    <main
+      className={`app-shell${isSidebarCollapsed ? ' sidebar-collapsed' : ''}${isMobileSidebarOpen ? ' mobile-nav-open' : ''}`}
+      data-mode={appMode}
+      data-theme={appTheme}
+    >
       <aside className="sidebar">
         <div className="brand">
-          <Headphones size={24} />
-          <div className="brand-copy">
-            <strong>V3RII Call Center</strong>
-            <span>Rule admin</span>
-          </div>
-          <button
-            aria-label={isSidebarCollapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
-            className="sidebar-toggle"
-            type="button"
-            onClick={() => setIsSidebarCollapsed((value) => !value)}
-          >
-            {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-          </button>
-          <button
-            aria-label={isMobileSidebarOpen ? 'Mobil menüyü kapat' : 'Mobil menüyü aç'}
-            className="mobile-sidebar-toggle"
-            type="button"
-            onClick={() => setIsMobileSidebarOpen((value) => !value)}
-          >
-            {isMobileSidebarOpen ? <X size={18} /> : <Menu size={18} />}
-          </button>
+          <img
+            alt="V3RII"
+            className={isSidebarCollapsed ? 'brand-logo brand-logo-v3' : 'brand-logo'}
+            src={isSidebarCollapsed ? v3Logo : callCenterLogo}
+          />
         </div>
 
         {authContext?.isSuperAdmin && (
-          <button className="primary-action" type="button" onClick={() => {
-            setSelectedCompanyId(null);
-            setCompanyDraft(emptyCompany);
-          }}>
+          <button
+            className="primary-action sidebar-new-company"
+            type="button"
+            onClick={() => {
+              setSelectedCompanyId(null);
+              setCompanyDraft(emptyCompany);
+              selectWorkspaceSection('company');
+            }}
+          >
             <Plus size={16} /> <span>Yeni firma</span>
           </button>
         )}
 
-        <div className="role-box">
-          <strong>{authContext?.displayName ?? 'Oturum bekleniyor'}</strong>
-          <span>{authContext?.isSuperAdmin ? 'Süper admin' : 'Firma admini'}</span>
-        </div>
+        <div className="sidebar-scroll">
+          <nav className="module-list" aria-label="Call center modülleri">
+            {workspaceGroups.map((group) => {
+              const groupSections = workspaceSections.filter((section) => {
+                if (section.group !== group.id) return false;
+                const query = navSearch.trim().toLocaleLowerCase('tr-TR');
+                if (!query) return true;
+                return (
+                  section.title.toLocaleLowerCase('tr-TR').includes(query)
+                  || section.description.toLocaleLowerCase('tr-TR').includes(query)
+                  || group.title.toLocaleLowerCase('tr-TR').includes(query)
+                );
+              });
+              if (groupSections.length === 0) return null;
+              const groupHasActiveSection = groupSections.some((section) => section.id === activeSection);
+              const isExpanded = Boolean(navSearch.trim()) || expandedWorkspaceGroups[group.id];
 
-        <nav className="module-list" aria-label="Call center modülleri">
-          {workspaceGroups.map((group) => {
-            const groupSections = workspaceSections.filter((section) => section.group === group.id);
-            if (groupSections.length === 0) return null;
-            const groupHasActiveSection = groupSections.some((section) => section.id === activeSection);
-            const isExpanded = expandedWorkspaceGroups[group.id];
-
-            return (
-              <div className="module-group" key={group.id}>
-                <button
-                  aria-expanded={isExpanded}
-                  className={groupHasActiveSection ? 'module-group-trigger active' : 'module-group-trigger'}
-                  type="button"
-                  onClick={() => {
-                    if (isSidebarCollapsed) {
-                      setIsSidebarCollapsed(false);
-                    } else {
+              return (
+                <div className="module-group" key={group.id}>
+                  <button
+                    aria-expanded={isExpanded}
+                    className={groupHasActiveSection ? 'module-group-trigger active' : 'module-group-trigger'}
+                    type="button"
+                    onClick={() => {
+                      if (isSidebarCollapsed) {
+                        setIsSidebarCollapsed(false);
+                        setExpandedWorkspaceGroups((groups) => ({ ...groups, [group.id]: true }));
+                        const targetSection = groupHasActiveSection
+                          ? groupSections.find((section) => section.id === activeSection)?.id
+                          : groupSections[0]?.id;
+                        if (targetSection) {
+                          selectWorkspaceSection(targetSection);
+                        }
+                        return;
+                      }
+                      if (navSearch.trim()) return;
                       setExpandedWorkspaceGroups((groups) => ({ ...groups, [group.id]: !groups[group.id] }));
-                    }
-                  }}
-                >
-                  <span className="module-group-title">
-                    {group.icon}
-                    <strong>{group.title}</strong>
-                  </span>
-                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </button>
-                {isExpanded && !isSidebarCollapsed && (
-                  <div className="module-group-content">
-                    {groupSections.map((section) => (
-                      <button
-                        className={activeSection === section.id ? 'module-item active' : 'module-item'}
-                        key={section.id}
-                        type="button"
-                        onClick={() => selectWorkspaceSection(section.id)}
-                      >
-                        {section.icon}
-                        <span>
-                          <strong>{section.title}</strong>
-                          <small>{section.description}</small>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                    }}
+                  >
+                    <span className="module-group-title">
+                      {group.icon}
+                      <strong>{group.title}</strong>
+                    </span>
+                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+                  {isExpanded && !isSidebarCollapsed && (
+                    <div className="module-group-content">
+                      {groupSections.map((section) => (
+                        <button
+                          className={activeSection === section.id ? 'module-item active' : 'module-item'}
+                          key={section.id}
+                          type="button"
+                          onClick={() => selectWorkspaceSection(section.id)}
+                        >
+                          {section.icon}
+                          <span>
+                            <strong>{section.title}</strong>
+                            <small>{section.description}</small>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </nav>
+
+          <div className="company-list">
+            <span className="sidebar-label">Aktif Firma</span>
+            {!authContext?.isSuperAdmin && selectedCompany && (
+              <div className="company-context">
+                <Building2 size={16} />
+                <span>{selectedCompany.name}</span>
+                <small>{selectedCompany.code}</small>
               </div>
-            );
-          })}
-        </nav>
-
-        <div className="company-list">
-          <span className="sidebar-label">Aktif Firma</span>
-          {!authContext?.isSuperAdmin && selectedCompany && (
-            <div className="company-context">
-              <Building2 size={16} />
-              <span>{selectedCompany.name}</span>
-              <small>{selectedCompany.code}</small>
-            </div>
-          )}
-          {companies.map((company) => (
-            <button
-              className={company.id === selectedCompanyId ? 'company-item active' : 'company-item'}
-              key={company.id}
-              type="button"
-              onClick={() => void selectCompany(company.id)}
-            >
-              <Building2 size={16} />
-              <span>{company.name}</span>
-              <small>{company.code}</small>
-            </button>
-          ))}
+            )}
+            {companies.map((company) => (
+              <button
+                className={company.id === selectedCompanyId ? 'company-item active' : 'company-item'}
+                key={company.id}
+                type="button"
+                onClick={() => void selectCompany(company.id)}
+              >
+                <Building2 size={16} />
+                <span>{company.name}</span>
+                <small>{company.code}</small>
+              </button>
+            ))}
+          </div>
         </div>
-
-        <button className="logout-button" type="button" onClick={logout}>
-          <LogOut size={16} /> <span>Çıkış</span>
-        </button>
       </aside>
 
       <section className="workspace">
-        <header className="topbar">
-          <div className="page-heading">
-            <div className="page-breadcrumb">
-              <span>Call Center</span>
-              <ChevronRight size={13} />
-              <strong>{workspaceGroups.find((group) => group.id === activeWorkspaceSection.group)?.title}</strong>
-            </div>
-            <h1>{activeWorkspaceSection.title}</h1>
-            <p>{activeWorkspaceSection.description}</p>
+        <header className="app-navbar">
+          <div className="app-navbar-left">
+            <button
+              aria-label={isSidebarCollapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
+              className="sidebar-toggle navbar-sidebar-toggle"
+              type="button"
+              onClick={() => setIsSidebarCollapsed((value) => !value)}
+            >
+              {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+            </button>
+            <button
+              aria-label={isMobileSidebarOpen ? 'Mobil menüyü kapat' : 'Mobil menüyü aç'}
+              className="mobile-sidebar-toggle"
+              type="button"
+              onClick={() => setIsMobileSidebarOpen((value) => !value)}
+            >
+              {isMobileSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+            <label className="app-navbar-search">
+              <Search size={16} aria-hidden="true" />
+              <input
+                placeholder="Menülerde ara..."
+                type="search"
+                value={navSearch}
+                onChange={(event) => setNavSearch(event.target.value)}
+              />
+            </label>
           </div>
-          <div className="topbar-actions">
-            <div className="status-pill">
-              <RefreshCw size={14} />
-              {status}
-            </div>
+          <div className="app-navbar-actions">
             <div className="user-menu" ref={userMenuRef}>
               <button className="user-menu-button" type="button" onClick={() => setIsUserMenuOpen((value) => !value)}>
-                <UserRound size={16} />
-                <span>
-                  <strong>{authContext.displayName}</strong>
-                  <small>{selectedCompany?.name ?? (authContext.isSuperAdmin ? 'Super admin / firma seçilmedi' : 'Firma seçilmedi')}</small>
+                <span className="user-menu-avatar" aria-hidden="true">
+                  <UserRound size={16} />
                 </span>
-                <ChevronDown size={15} />
+                <span className="user-menu-badge">
+                  <strong>{authContext.displayName}</strong>
+                </span>
+                <ChevronDown size={15} className="user-menu-chevron" />
               </button>
               {isUserMenuOpen && (
                 <div className="user-menu-panel">
+                  <div className="user-menu-status">
+                    <RefreshCw size={14} />
+                    <span>{status}</span>
+                  </div>
+                  <div className="mode-switcher user-menu-mode">
+                    <span>Renk modu</span>
+                    <div className="mode-switcher-options">
+                      <button
+                        className={appMode === 'dark' ? 'mode-option active' : 'mode-option'}
+                        type="button"
+                        onClick={() => setAppMode('dark')}
+                      >
+                        <Moon size={14} /> Koyu
+                      </button>
+                      <button
+                        className={appMode === 'light' ? 'mode-option active' : 'mode-option'}
+                        type="button"
+                        onClick={() => setAppMode('light')}
+                      >
+                        <Sun size={14} /> Aydınlık
+                      </button>
+                    </div>
+                  </div>
                   <div>
                     <span>Kullanıcı</span>
                     <strong>{authContext.displayName}</strong>
@@ -1763,12 +2115,39 @@ function App() {
                     <strong>{selectedCompany?.name ?? 'Firma seçilmedi'}</strong>
                     <small>{selectedCompany ? `${selectedCompany.code} · ${selectedCompany.companyType}` : 'Sol menüden firma seçilebilir'}</small>
                   </div>
+                  <div className="theme-switcher">
+                    <span>Arayüz teması</span>
+                    <div className="theme-switcher-options">
+                      {appThemeOptions.map((option) => (
+                        <button
+                          className={appTheme === option.id ? 'theme-option active' : 'theme-option'}
+                          key={option.id}
+                          type="button"
+                          onClick={() => setAppTheme(option.id)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <button className="logout-button compact" type="button" onClick={logout}>
                     <LogOut size={15} /> Çıkış yap
                   </button>
                 </div>
               )}
             </div>
+          </div>
+        </header>
+
+        <header className="topbar">
+          <div className="page-heading">
+            <div className="page-breadcrumb">
+              <span>Call Center</span>
+              <ChevronRight size={13} />
+              <strong>{workspaceGroups.find((group) => group.id === activeWorkspaceSection.group)?.title}</strong>
+            </div>
+            <h1>{activeWorkspaceSection.title}</h1>
+            <p>{activeWorkspaceSection.description}</p>
           </div>
         </header>
 
@@ -2397,8 +2776,11 @@ function PanelTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
 function Field({ label, children, required = false }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
     <label className="field">
-      <span>{label}{required && <span aria-hidden="true" className="required-mark">*</span>}</span>
-      {children}
+      <span className="field-label">
+        {label}
+        {required && <span aria-hidden="true" className="required-mark">*</span>}
+      </span>
+      <div className="field-control">{children}</div>
     </label>
   );
 }
@@ -2406,24 +2788,30 @@ function Field({ label, children, required = false }: { label: string; children:
 function LoginField({
   action,
   icon,
+  invalid = false,
   label,
   required = false,
   children,
 }: {
   action?: React.ReactNode;
   icon: React.ReactNode;
+  invalid?: boolean;
   label: string;
   required?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className={action ? 'mb-1 flex items-center justify-between gap-3' : 'mb-1 block'}>
-        <span className="block text-xs font-medium uppercase tracking-wider text-slate-400">{label}{required && <span aria-hidden="true" className="required-mark">*</span>}</span>
+    <label className="login-field">
+      <span className={action ? 'login-field-head' : 'login-field-label-wrap'}>
+        <span className="login-field-label">
+          {label}
+          {required && <span aria-hidden="true" className="login-field-required">*</span>}
+        </span>
         {action}
       </span>
-      <div className="neon-border relative flex items-center rounded-lg border border-gray-700 bg-[#131b2f] transition-colors">
-        <div className="login-field-icon absolute left-3 text-slate-500">{icon}</div>
+      <div className={invalid ? 'login-field-shell is-invalid' : 'login-field-shell'}>
+        <div className="login-field-glow" aria-hidden="true" />
+        <div className="login-field-icon">{icon}</div>
         {children}
       </div>
     </label>
@@ -2467,7 +2855,7 @@ function CustomSelect({
   }, [isOpen]);
 
   return (
-    <div className="relative w-full" ref={rootRef}>
+    <div className="relative w-full min-w-0 max-w-full" ref={rootRef}>
       <button
         aria-expanded={isOpen}
         className={compact ? 'select-trigger select-trigger-compact' : 'select-trigger'}
@@ -2479,7 +2867,7 @@ function CustomSelect({
           {label && compact ? <span className="select-trigger-label text-slate-500">{label}</span> : null}
           {isLoading ? loadingText : selectedOption?.label}
         </span>
-        <ChevronDown className={isOpen ? 'rotate-180 transition-transform' : 'transition-transform'} size={16} />
+        <ChevronDown className={isOpen ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} size={16} />
       </button>
 
       {isOpen && (
@@ -2511,122 +2899,6 @@ function CustomSelect({
   );
 }
 
-function WanderingRocket() {
-  const rocketRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const rocket = rocketRef.current;
-    if (!rocket) return;
-
-    let animationFrame = 0;
-    let x = -120;
-    let y = window.innerHeight * 0.72;
-    let targetX = window.innerWidth + 140;
-    let targetY = window.innerHeight * 0.18;
-    let progress = 0;
-
-    const resetPath = () => {
-      x = -140;
-      y = window.innerHeight * (0.45 + Math.random() * 0.38);
-      targetX = window.innerWidth + 140;
-      targetY = window.innerHeight * (0.08 + Math.random() * 0.35);
-      progress = 0;
-    };
-
-    const animate = () => {
-      progress += 0.0018;
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const currentX = x + (targetX - x) * eased;
-      const arc = Math.sin(progress * Math.PI) * 130;
-      const currentY = y + (targetY - y) * eased - arc;
-      const angle = Math.atan2(targetY - y, targetX - x) * (180 / Math.PI) + 90;
-
-      rocket.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${angle}deg)`;
-
-      if (progress >= 1) {
-        resetPath();
-      }
-
-      animationFrame = window.requestAnimationFrame(animate);
-    };
-
-    resetPath();
-    animate();
-
-    const handleResize = () => resetPath();
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
-
-  return (
-    <div
-      className="wandering-rocket pointer-events-none fixed left-0 top-0 z-0 h-[200px] w-[100px]"
-      ref={rocketRef}
-      style={{ transform: 'translate(-999px, -999px)' }}
-    >
-      <svg viewBox="0 0 100 200" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="rocketBodyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#cbd5e1" />
-            <stop offset="50%" stopColor="#ffffff" />
-            <stop offset="100%" stopColor="#94a3b8" />
-          </linearGradient>
-          <linearGradient id="rocketGlassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#38bdf8" />
-            <stop offset="100%" stopColor="#0284c7" />
-          </linearGradient>
-          <linearGradient id="rocketFinGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#dc2626" />
-            <stop offset="100%" stopColor="#991b1b" />
-          </linearGradient>
-          <filter id="rocketFlameGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-        </defs>
-
-        <g className="wandering-flame">
-          <path d="M35 135 Q50 220 65 135 Z" fill="#ea580c" filter="url(#rocketFlameGlow)" />
-          <path d="M40 135 Q50 185 60 135 Z" fill="#facc15" />
-          <path d="M45 135 Q50 155 55 135 Z" fill="#ffffff" />
-        </g>
-
-        <path d="M35 120 L65 120 L60 135 L40 135 Z" fill="#334155" />
-        <path d="M20 100 Q5 140 0 150 L20 130 Z" fill="url(#rocketFinGrad)" />
-        <path d="M80 100 Q95 140 100 150 L80 130 Z" fill="url(#rocketFinGrad)" />
-        <path d="M50 10 Q20 40 20 120 L80 120 Q80 40 50 10 Z" fill="url(#rocketBodyGrad)" />
-        <path d="M48 100 L52 100 L52 140 L48 140 Z" fill="#7f1d1d" />
-        <path d="M50 10 Q32 30 25.5 50 L74.5 50 Q68 30 50 10 Z" fill="url(#rocketFinGrad)" />
-        <circle cx="50" cy="65" r="14" fill="#1e293b" />
-        <circle cx="50" cy="65" r="11" fill="url(#rocketGlassGrad)" />
-        <path d="M43 58 A 9 9 0 0 1 55 59 A 11 11 0 0 0 43 68 Z" fill="#ffffff" opacity="0.4" />
-        <path d="M22 100 L78 100" stroke="#94a3b8" strokeWidth="1" opacity="0.5" />
-        <path d="M20 110 L80 110" stroke="#94a3b8" strokeWidth="1" opacity="0.5" />
-      </svg>
-    </div>
-  );
-}
-
-function PlanetMark() {
-  return (
-    <svg width="300" height="300" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <radialGradient id="callcenterPlanetGrad" cx="30%" cy="30%" r="50%">
-          <stop offset="0%" stopColor="#00c3ff" />
-          <stop offset="100%" stopColor="#000033" />
-        </radialGradient>
-      </defs>
-      <circle cx="50" cy="50" r="40" fill="none" stroke="#00c3ff" strokeDasharray="4 2" strokeWidth="2" />
-      <circle cx="50" cy="50" r="30" fill="none" stroke="#a020f0" strokeWidth="1" />
-      <circle cx="50" cy="50" r="20" fill="url(#callcenterPlanetGrad)" />
-    </svg>
-  );
-}
-
 function SpaceBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -2641,12 +2913,12 @@ function SpaceBackground() {
     let width = 0;
     let height = 0;
     let stars: { x: number; y: number; radius: number; vx: number; vy: number; color: string }[] = [];
-    const colors = ['#ffffff', '#00c3ff', '#a020f0', '#ffffff', '#ffffff'];
+    const colors = ['#ffffff', '#06b6d4', '#ec4899', '#f97316', '#ffffff'];
 
     const initStars = () => {
       width = canvas.width = window.innerWidth;
       height = canvas.height = window.innerHeight;
-      const count = Math.floor((width * height) / 2400);
+      const count = Math.floor((width * height) / 1400);
       stars = Array.from({ length: count }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
@@ -2659,7 +2931,7 @@ function SpaceBackground() {
 
     const draw = () => {
       context.clearRect(0, 0, width, height);
-      context.fillStyle = '#050914';
+      context.fillStyle = '#05020A';
       context.fillRect(0, 0, width, height);
 
       for (const star of stars) {
