@@ -17,18 +17,25 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  Cpu,
+  Disc3,
   Eye,
   EyeOff,
+  Gamepad2,
   GitBranch,
   Globe,
   Headphones,
   History,
+  LayoutDashboard,
   Lock,
   LogOut,
   Menu,
+  Monitor,
+  Orbit,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
+  Phone,
   PhoneForwarded,
   PhoneIncoming,
   Play,
@@ -40,6 +47,8 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
+  Star,
   Sun,
   Trash2,
   Moon,
@@ -50,6 +59,7 @@ import './App.css';
 import './app-themes.css';
 import callCenterLogo from './assets/v3rii-callcenter.png';
 import v3Logo from './assets/v3logo.png';
+import { Dashboard } from './components/Dashboard';
 import { PagedGrid, type PagedGridColumn } from './components/PagedGrid';
 import {
   callCenterApi,
@@ -114,6 +124,10 @@ function readStoredAppMode(): AppMode {
   return 'dark';
 }
 
+function hasStoredAccessToken() {
+  return Boolean(localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token'));
+}
+
 const actionLabels: Record<string, string> = {
   AiAnswer: 'AI cevaplasın',
   TransferToQueue: 'Canlı kuyruğa aktar',
@@ -142,10 +156,11 @@ const loginLanguages = [
 
 type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
-type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'telephony-connections' | 'phone-numbers' | 'departments' | 'queues' | 'transfer-targets' | 'agent-status' | 'rules' | 'ai-profile' | 'speech-profile' | 'simulator' | 'call-sessions' | 'follow-ups' | 'logs' | 'users' | 'roles';
-type WorkspaceGroup = 'company-management' | 'telephony' | 'operation' | 'ai-operation' | 'monitoring' | 'access-management';
+type WorkspaceSection = 'dashboard' | 'company' | 'hours' | 'exceptions' | 'telephony-connections' | 'phone-numbers' | 'departments' | 'queues' | 'transfer-targets' | 'agent-status' | 'rules' | 'ai-profile' | 'speech-profile' | 'simulator' | 'call-sessions' | 'follow-ups' | 'logs' | 'users' | 'roles';
+type WorkspaceGroup = 'overview' | 'company-management' | 'telephony' | 'operation' | 'ai-operation' | 'monitoring' | 'access-management';
 
 const defaultExpandedWorkspaceGroups: Record<WorkspaceGroup, boolean> = {
+  overview: true,
   'company-management': false,
   telephony: false,
   operation: false,
@@ -166,6 +181,7 @@ function readStoredExpandedGroups(): Record<WorkspaceGroup, boolean> {
 }
 
 const workspacePaths: Record<WorkspaceSection, string> = {
+  dashboard: '/dashboard',
   company: '/company-management/company-profile',
   hours: '/company-management/business-hours',
   exceptions: '/company-management/calendar-exceptions',
@@ -204,7 +220,7 @@ const legacyWorkspacePaths: Partial<Record<string, WorkspaceSection>> = {
 function getWorkspaceSection(pathname: string): WorkspaceSection {
   return (Object.entries(workspacePaths).find(([, path]) => path === pathname)?.[0] as WorkspaceSection | undefined)
     ?? legacyWorkspacePaths[pathname]
-    ?? 'company';
+    ?? 'dashboard';
 }
 
 const loginTranslations: Record<LoginLanguageCode, {
@@ -634,6 +650,7 @@ function App() {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [authContext, setAuthContext] = useState<AuthContext | null>(null);
+  const [isAuthBootstrapping, setIsAuthBootstrapping] = useState(() => hasStoredAccessToken());
   const [loginCompanies, setLoginCompanies] = useState<AuthCompany[]>([]);
   const [isLoginCompaniesLoading, setIsLoginCompaniesLoading] = useState(false);
   const [expandedWorkspaceGroups, setExpandedWorkspaceGroups] = useState<Record<WorkspaceGroup, boolean>>(() => readStoredExpandedGroups());
@@ -697,6 +714,7 @@ function App() {
   const [isXComingSoonOpen, setIsXComingSoonOpen] = useState(false);
   const [loginLanguage, setLoginLanguage] = useState<LoginLanguageCode>('tr');
   const xComingSoonRef = useRef<HTMLDivElement | null>(null);
+  const authBootstrapStartedRef = useRef(false);
   const [exceptionDraft, setExceptionDraft] = useState({
     date: new Date().toISOString().slice(0, 10),
     title: '',
@@ -781,6 +799,7 @@ function App() {
   );
   const allWorkspaceSections = useMemo(
     () => [
+      { id: 'dashboard' as const, group: 'overview' as const, permission: 'dashboard.view', title: 'Dashboard', description: 'Operasyon özeti, KPI ve hızlı işlemler', icon: <LayoutDashboard size={16} /> },
       { id: 'company' as const, group: 'company-management' as const, permission: 'company.view', title: 'Firma Kartı', description: 'Ana firma kartı ve yasal bilgiler', icon: <Building2 size={16} /> },
       { id: 'hours' as const, group: 'company-management' as const, permission: 'calendar.view', title: 'Çalışma Saatleri', description: 'Haftalık açık ve kapalı saatler', icon: <Clock3 size={16} /> },
       { id: 'exceptions' as const, group: 'company-management' as const, permission: 'calendar.view', title: 'Özel Günler', description: 'Tatil, yarım gün ve kapalı günler', icon: <CalendarDays size={16} /> },
@@ -804,11 +823,14 @@ function App() {
   );
   const workspaceSections = useMemo(
     () => allWorkspaceSections.filter((section) =>
-      authContext?.isSuperAdmin || authContext?.permissionCodes?.includes(section.permission)),
+      section.id === 'dashboard'
+      || authContext?.isSuperAdmin
+      || authContext?.permissionCodes?.includes(section.permission)),
     [allWorkspaceSections, authContext],
   );
   const workspaceGroups = useMemo(
     () => [
+      { id: 'overview' as const, title: 'Genel Bakış', icon: <LayoutDashboard size={18} /> },
       { id: 'company-management' as const, title: 'Firma Yönetimi', icon: <Building2 size={18} /> },
       { id: 'telephony' as const, title: 'Telefon Altyapısı', icon: <RadioTower size={18} /> },
       { id: 'operation' as const, title: 'Operasyon Tanımları', icon: <SlidersHorizontal size={18} /> },
@@ -922,18 +944,24 @@ function App() {
   useEffect(() => {
     const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token');
     if (token) {
-      void bootstrap();
-    } else {
-      setIsLoginCompaniesLoading(true);
-      void callCenterApi.loginCompanies()
-        .then(setLoginCompanies)
-        .catch(() => {
-          setLoginCompanies([]);
-          setLoginStatusTone('error');
-          setStatus(loginText.companyLoadFailed);
-        })
-        .finally(() => setIsLoginCompaniesLoading(false));
+      if (!authBootstrapStartedRef.current) {
+        authBootstrapStartedRef.current = true;
+        void bootstrap();
+      }
+      return;
     }
+
+    authBootstrapStartedRef.current = false;
+    setIsAuthBootstrapping(false);
+    setIsLoginCompaniesLoading(true);
+    void callCenterApi.loginCompanies()
+      .then(setLoginCompanies)
+      .catch(() => {
+        setLoginCompanies([]);
+        setLoginStatusTone('error');
+        setStatus(loginText.companyLoadFailed);
+      })
+      .finally(() => setIsLoginCompaniesLoading(false));
   }, [loginText.companyLoadFailed]);
 
   useEffect(() => {
@@ -942,12 +970,17 @@ function App() {
   }, [selectedCompanyId, authContext]);
 
   useEffect(() => {
-    if (!authContext || workspaceSections.some((section) => section.id === activeSection)) return;
+    if (!authContext) return;
+    if (location.pathname === '/' || location.pathname === '') {
+      navigate(workspacePaths.dashboard, { replace: true });
+      return;
+    }
+    if (workspaceSections.some((section) => section.id === activeSection)) return;
     const firstSection = workspaceSections[0];
     if (firstSection) {
       navigate(workspacePaths[firstSection.id], { replace: true });
     }
-  }, [activeSection, authContext, navigate, workspaceSections]);
+  }, [activeSection, authContext, location.pathname, navigate, workspaceSections]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -1028,12 +1061,34 @@ function App() {
   }, [selectedCompany]);
 
   async function bootstrap() {
+    setIsAuthBootstrapping(true);
     setLoginStatusTone('info');
     setStatus('Oturum bağlamı yükleniyor');
-    const context = await callCenterApi.authContext();
-    setAuthContext(context);
-    setSelectedCompanyId(context.selectedCompanyId ?? context.companies[0]?.id ?? null);
-    await refreshCompanies(context);
+    try {
+      const context = await callCenterApi.authContext();
+      setAuthContext(context);
+      setSelectedCompanyId(context.selectedCompanyId ?? context.companies[0]?.id ?? null);
+      await refreshCompanies(context, true);
+      setStatus('Hazır');
+    } catch {
+      localStorage.removeItem('access_token');
+      sessionStorage.removeItem('access_token');
+      setAuthContext(null);
+      setCompanies([]);
+      setSelectedCompanyId(null);
+      setLoginStatusTone('error');
+      setStatus('Oturum süresi doldu, tekrar giriş yapın');
+      setIsLoginCompaniesLoading(true);
+      void callCenterApi.loginCompanies()
+        .then(setLoginCompanies)
+        .catch(() => {
+          setLoginCompanies([]);
+          setStatus(loginText.companyLoadFailed);
+        })
+        .finally(() => setIsLoginCompaniesLoading(false));
+    } finally {
+      setIsAuthBootstrapping(false);
+    }
   }
 
   function clearLoginFieldError(field: 'company' | 'email' | 'password') {
@@ -1115,6 +1170,8 @@ function App() {
   function logout() {
     localStorage.removeItem('access_token');
     sessionStorage.removeItem('access_token');
+    authBootstrapStartedRef.current = false;
+    setIsAuthBootstrapping(false);
     setAuthContext(null);
     setCompanies([]);
     setSelectedCompanyId(null);
@@ -1855,6 +1912,10 @@ function App() {
     setStatus('Simülasyon tamamlandı');
   }
 
+  if (isAuthBootstrapping) {
+    return <ThemeBootLoader theme={appTheme} mode={appMode} />;
+  }
+
   if (!authContext) {
     const passwordRevealLabel = loginLanguage === 'tr'
       ? (isPasswordVisible ? 'GİZLE' : 'GÖSTER')
@@ -2183,6 +2244,14 @@ function App() {
       data-mode={appMode}
       data-theme={appTheme}
     >
+      {appTheme === 'space' && (
+        <div className="space-void" aria-hidden="true">
+          <span className="space-void-planet space-void-planet-a" />
+          <span className="space-void-planet space-void-planet-b" />
+          <span className="space-void-planet space-void-planet-c" />
+          <span className="space-void-planet space-void-planet-d" />
+        </div>
+      )}
       <aside className="sidebar">
         <div className="brand">
           <img
@@ -2403,19 +2472,28 @@ function App() {
           </div>
         </header>
 
-        <header className="topbar">
-          <div className="page-heading">
-            <div className="page-breadcrumb">
-              <span>Call Center</span>
-              <ChevronRight size={13} />
-              <strong>{workspaceGroups.find((group) => group.id === activeWorkspaceSection.group)?.title}</strong>
+        {activeSection !== 'dashboard' && (
+          <header className="topbar">
+            <div className="page-heading">
+              <div className="page-breadcrumb">
+                <span>Call Center</span>
+                <ChevronRight size={13} />
+                <strong>{workspaceGroups.find((group) => group.id === activeWorkspaceSection.group)?.title}</strong>
+              </div>
+              <h1>{activeWorkspaceSection.title}</h1>
+              <p>{activeWorkspaceSection.description}</p>
             </div>
-            <h1>{activeWorkspaceSection.title}</h1>
-            <p>{activeWorkspaceSection.description}</p>
-          </div>
-        </header>
+          </header>
+        )}
 
         <div className="grid">
+          {activeSection === 'dashboard' && (
+            <Dashboard
+              displayName={authContext.displayName}
+              companyName={selectedCompany?.name}
+              onNavigate={(section) => selectWorkspaceSection(section)}
+            />
+          )}
           {activeSection === 'company' && <section className="panel company-panel">
             <PanelTitle icon={<Building2 size={18} />} title="Firma Tanımı" />
             {!authContext?.isSuperAdmin && (
@@ -3315,6 +3393,80 @@ function CustomSelect({
         </div>
       )}
     </div>
+  );
+}
+
+function ThemeBootLoader({ theme, mode }: { theme: AppTheme; mode: AppMode }) {
+  const copy =
+    theme === 'retro'
+      ? { title: 'SYSTEM BOOT', subtitle: 'Oturum yükleniyor...' }
+      : theme === 'classic'
+        ? { title: 'V3RII', subtitle: 'Oturum yükleniyor' }
+        : { title: 'V3RII Call Center', subtitle: 'Uzaya bağlanıyor...' };
+
+  return (
+    <main className="app-shell theme-boot-loader" data-theme={theme} data-mode={mode} aria-busy="true" aria-live="polite">
+      <div className="theme-boot-stage">
+        {theme === 'space' && (
+          <div className="theme-boot-orbit" aria-hidden="true">
+            <span className="theme-boot-planet theme-boot-planet-a" />
+            <span className="theme-boot-planet theme-boot-planet-b" />
+            <span className="theme-boot-planet theme-boot-planet-c" />
+            <div className="theme-boot-ring theme-boot-ring-lg">
+              <Rocket className="theme-boot-sat" size={22} strokeWidth={1.6} />
+            </div>
+            <div className="theme-boot-ring theme-boot-ring-md">
+              <Orbit className="theme-boot-sat" size={20} strokeWidth={1.6} />
+            </div>
+            <div className="theme-boot-ring theme-boot-ring-sm">
+              <Star className="theme-boot-sat" size={18} strokeWidth={1.6} />
+            </div>
+            <div className="theme-boot-core">
+              <Sparkles size={28} strokeWidth={1.5} />
+            </div>
+          </div>
+        )}
+
+        {theme === 'retro' && (
+          <div className="theme-boot-retro" aria-hidden="true">
+            <div className="theme-boot-retro-frame">
+              <div className="theme-boot-retro-scan" />
+              <div className="theme-boot-retro-icons">
+                <Gamepad2 className="theme-boot-retro-icon theme-boot-retro-icon-a" size={28} strokeWidth={1.8} />
+                <Monitor className="theme-boot-retro-icon theme-boot-retro-icon-b" size={28} strokeWidth={1.8} />
+                <Disc3 className="theme-boot-retro-icon theme-boot-retro-icon-c" size={28} strokeWidth={1.8} />
+                <Cpu className="theme-boot-retro-icon theme-boot-retro-icon-d" size={28} strokeWidth={1.8} />
+              </div>
+              <div className="theme-boot-retro-bar">
+                <span /><span /><span /><span /><span /><span /><span /><span />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {theme === 'classic' && (
+          <div className="theme-boot-classic" aria-hidden="true">
+            <div className="theme-boot-classic-ring">
+              <Building2 className="theme-boot-classic-icon theme-boot-classic-icon-a" size={22} strokeWidth={1.7} />
+              <Headphones className="theme-boot-classic-icon theme-boot-classic-icon-b" size={22} strokeWidth={1.7} />
+              <Phone className="theme-boot-classic-icon theme-boot-classic-icon-c" size={22} strokeWidth={1.7} />
+              <ShieldCheck className="theme-boot-classic-icon theme-boot-classic-icon-d" size={22} strokeWidth={1.7} />
+            </div>
+            <div className="theme-boot-classic-core">
+              <img src={v3Logo} alt="" className="theme-boot-classic-logo" />
+            </div>
+          </div>
+        )}
+
+        <div className="theme-boot-copy">
+          {theme !== 'classic' && (
+            <img src={theme === 'retro' ? v3Logo : callCenterLogo} alt="V3RII" className="theme-boot-brand" />
+          )}
+          <strong>{copy.title}</strong>
+          <span>{copy.subtitle}</span>
+        </div>
+      </div>
+    </main>
   );
 }
 
