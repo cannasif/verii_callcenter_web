@@ -21,6 +21,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
+  PhoneForwarded,
   Play,
   Plus,
   RefreshCw,
@@ -59,6 +60,9 @@ import {
   type QueueDistributionStrategy,
   type QueueMember,
   type QueueAgentCandidate,
+  type TransferTarget,
+  type TransferTargetOptions,
+  type TransferTargetType,
 } from './api';
 
 const dayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
@@ -90,7 +94,7 @@ const loginLanguages = [
 
 type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
-type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'queues' | 'agent-status' | 'rules' | 'ai-profile' | 'simulator' | 'call-sessions' | 'logs' | 'users' | 'roles';
+type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'queues' | 'transfer-targets' | 'agent-status' | 'rules' | 'ai-profile' | 'simulator' | 'call-sessions' | 'logs' | 'users' | 'roles';
 type WorkspaceGroup = 'company-management' | 'operation' | 'ai-operation' | 'monitoring' | 'access-management';
 
 const workspacePaths: Record<WorkspaceSection, string> = {
@@ -99,6 +103,7 @@ const workspacePaths: Record<WorkspaceSection, string> = {
   exceptions: '/company-management/calendar-exceptions',
   departments: '/operations/departments',
   queues: '/operations/queues',
+  'transfer-targets': '/operations/transfer-targets',
   'agent-status': '/operations/agent-status',
   rules: '/operations/routing-rules',
   'ai-profile': '/ai-operations/assistant-profile',
@@ -114,6 +119,7 @@ const legacyWorkspacePaths: Partial<Record<string, WorkspaceSection>> = {
   '/firma-yonetimi/calisma-saatleri': 'hours',
   '/firma-yonetimi/ozel-gunler': 'exceptions',
   '/operasyon/departman-kuyruklar': 'departments',
+  '/operasyon/aktarim-hedefleri': 'transfer-targets',
   '/operasyon/yonlendirme-kurallari': 'rules',
   '/ai-operasyon/asistan-profili': 'ai-profile',
   '/izleme/karar-simulasyonu': 'simulator',
@@ -560,6 +566,9 @@ function App() {
   const [isDepartmentFormOpen, setIsDepartmentFormOpen] = useState(false);
   const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
   const [isQueueFormOpen, setIsQueueFormOpen] = useState(false);
+  const [isTransferTargetFormOpen, setIsTransferTargetFormOpen] = useState(false);
+  const [editingTransferTargetId, setEditingTransferTargetId] = useState<number | null>(null);
+  const [transferTargetOptions, setTransferTargetOptions] = useState<TransferTargetOptions>({ queues: [], providers: [], agents: [] });
   const [editingQueueId, setEditingQueueId] = useState<number | null>(null);
   const [queueMembers, setQueueMembers] = useState<QueueMember[]>([]);
   const [queueMemberCandidates, setQueueMemberCandidates] = useState<QueueAgentCandidate[]>([]);
@@ -590,6 +599,7 @@ function App() {
   });
   const [queueDraft, setQueueDraft] = useState({ departmentId: '', code: '', name: '', description: '', priority: 100, maxWaitingCalls: 50, maxWaitSeconds: 300, wrapUpSeconds: 30, distributionStrategy: 'LongestIdle', isActive: true });
   const [queueMemberDraft, setQueueMemberDraft] = useState({ companyUserId: '', skillLevel: 3, priority: 100 });
+  const [transferTargetDraft, setTransferTargetDraft] = useState({ queueId: '', companyUserId: '', providerConnectionId: '', code: '', name: '', targetType: 'SipExtension' as TransferTargetType, destination: '', priority: 100, ringTimeoutSeconds: 20, isFallback: false, isActive: true, notes: '' });
   const [ruleDraft, setRuleDraft] = useState({
     name: '',
     priority: 100,
@@ -660,6 +670,7 @@ function App() {
       { id: 'exceptions' as const, group: 'company-management' as const, permission: 'calendar.view', title: 'Özel Günler', description: 'Tatil, yarım gün ve kapalı günler', icon: <CalendarDays size={16} /> },
       { id: 'departments' as const, group: 'operation' as const, permission: 'departments.view', title: 'Departman ve Kuyruklar', description: 'Ekip, kuyruk ve dil tanımları', icon: <Headphones size={16} /> },
       { id: 'queues' as const, group: 'operation' as const, permission: 'queues.view', title: 'Çağrı Kuyrukları', description: 'Kapasite, dağıtım ve bekleme politikaları', icon: <History size={16} /> },
+      { id: 'transfer-targets' as const, group: 'operation' as const, permission: 'transfer-targets.view', title: 'Aktarım Hedefleri', description: 'SIP dahili, cep telefonu ve harici santral', icon: <PhoneForwarded size={16} /> },
       { id: 'agent-status' as const, group: 'operation' as const, permission: 'agent-status.view', title: 'Temsilci Durumları', description: 'Uygunluk, çağrı ve mola durumları', icon: <UserRound size={16} /> },
       { id: 'rules' as const, group: 'operation' as const, permission: 'routing.view', title: 'Yönlendirme Kuralları', description: 'AI, canlı aktarım ve aksiyonlar', icon: <GitBranch size={16} /> },
       { id: 'ai-profile' as const, group: 'ai-operation' as const, permission: 'ai.view', title: 'AI Asistan Profili', description: 'Yanıt, güven ve temsilciye devir politikası', icon: <Bot size={16} /> },
@@ -740,6 +751,15 @@ function App() {
     { key: 'queue', label: 'Kuyruk', width: '150px', render: (row) => row.queueName ?? '-' },
     { key: 'agent', label: 'Temsilci', width: '160px', render: (row) => row.assignedAgentName ?? '-' },
     { key: 'status', label: 'Durum', sortKey: 'Status', width: '120px', render: (row) => <span className="data-badge info">{String(row.status)}</span> },
+  ], []);
+  const transferTargetGridColumns = useMemo<PagedGridColumn<TransferTarget>[]>(() => [
+    { key: 'priority', label: 'Öncelik', sortKey: 'Priority', width: '90px', render: (row) => <span className="mono-cell">#{row.priority}</span> },
+    { key: 'target', label: 'Aktarım hedefi', sortKey: 'Name', render: (row) => <span className="primary-cell"><strong>{row.name}</strong><small>{row.code} · {row.destination}</small></span> },
+    { key: 'queue', label: 'Kuyruk', width: '160px', render: (row) => row.queueName },
+    { key: 'type', label: 'Tür', sortKey: 'TargetType', width: '170px', render: (row) => ({ SipExtension: 'SIP dahili', ExternalPhoneNumber: 'Cep / sabit', ExternalSipUri: 'Harici santral', NetgsmExtensionOrQueue: 'Netsantral' }[String(row.targetType)] ?? String(row.targetType)) },
+    { key: 'agent', label: 'Temsilci', width: '150px', render: (row) => row.companyUserName ?? 'Kuyruk hedefi' },
+    { key: 'timeout', label: 'Çalma', sortKey: 'RingTimeoutSeconds', width: '90px', render: (row) => `${row.ringTimeoutSeconds} sn` },
+    { key: 'status', label: 'Durum', sortKey: 'IsActive', width: '100px', render: (row) => <span className={row.isActive ? 'data-badge active' : 'data-badge'}>{row.isActive ? 'Aktif' : 'Pasif'}</span> },
   ], []);
 
   function selectWorkspaceSection(section: WorkspaceSection) {
@@ -1168,6 +1188,82 @@ function App() {
     } catch {
       setQueueMembers((items) => items.map((item) => item.id === member.id ? member : item));
       setStatus('Kuyruk üyeliği güncellenemedi');
+    }
+  }
+
+  async function openTransferTarget(target?: TransferTarget) {
+    if (!selectedCompanyId) return;
+    setStatus('Aktarım seçenekleri yükleniyor');
+    try {
+      const options = await callCenterApi.transferTargetOptions(selectedCompanyId);
+      setTransferTargetOptions(options);
+      setEditingTransferTargetId(target?.id ?? null);
+      setTransferTargetDraft(target ? {
+        queueId: target.queueId.toString(),
+        companyUserId: target.companyUserId?.toString() ?? '',
+        providerConnectionId: target.providerConnectionId?.toString() ?? '',
+        code: target.code,
+        name: target.name,
+        targetType: target.targetType,
+        destination: target.destination,
+        priority: target.priority,
+        ringTimeoutSeconds: target.ringTimeoutSeconds,
+        isFallback: target.isFallback,
+        isActive: target.isActive,
+        notes: target.notes ?? '',
+      } : {
+        queueId: options.queues[0]?.id.toString() ?? '',
+        companyUserId: '',
+        providerConnectionId: '',
+        code: '',
+        name: '',
+        targetType: 'SipExtension',
+        destination: '',
+        priority: 100,
+        ringTimeoutSeconds: 20,
+        isFallback: false,
+        isActive: true,
+        notes: '',
+      });
+      setIsTransferTargetFormOpen(true);
+      setStatus('Hazır');
+    } catch {
+      setStatus('Aktarım seçenekleri yüklenemedi');
+    }
+  }
+
+  async function saveTransferTarget() {
+    if (!selectedCompanyId || !transferTargetDraft.queueId || !transferTargetDraft.code.trim() || !transferTargetDraft.name.trim() || !transferTargetDraft.destination.trim()) return;
+    setIsFormSaving(true);
+    setStatus('Aktarım hedefi kaydediliyor');
+    try {
+      const payload = {
+        ...transferTargetDraft,
+        queueId: Number(transferTargetDraft.queueId),
+        companyUserId: transferTargetDraft.companyUserId ? Number(transferTargetDraft.companyUserId) : null,
+        providerConnectionId: transferTargetDraft.providerConnectionId ? Number(transferTargetDraft.providerConnectionId) : null,
+        notes: transferTargetDraft.notes || null,
+      };
+      if (editingTransferTargetId) await callCenterApi.updateTransferTarget(selectedCompanyId, editingTransferTargetId, payload);
+      else await callCenterApi.createTransferTarget(selectedCompanyId, payload);
+      setGridRefreshVersion((version) => version + 1);
+      setIsTransferTargetFormOpen(false);
+      setStatus('Aktarım hedefi kaydedildi');
+    } catch {
+      setStatus('Aktarım hedefi kaydedilemedi');
+    } finally {
+      setIsFormSaving(false);
+    }
+  }
+
+  async function deleteTransferTarget(target: TransferTarget) {
+    if (!selectedCompanyId || !window.confirm(`${target.name} aktarım hedefi silinsin mi?`)) return;
+    try {
+      await callCenterApi.deleteTransferTarget(selectedCompanyId, target.id);
+      setGridRefreshVersion((version) => version + 1);
+      setStatus('Aktarım hedefi silindi');
+    } catch {
+      setStatus('Aktarım hedefi silinemedi');
     }
   }
 
@@ -1849,6 +1945,28 @@ function App() {
             />
           </section>}
 
+          {activeSection === 'transfer-targets' && <section className="panel company-panel">
+            <div className="management-panel-header">
+              <div><PanelTitle icon={<PhoneForwarded size={18} />} title="Aktarım Hedefleri" /><p className="panel-helper">AI görüşmeyi devrettiğinde çalacak SIP dahili, telefon veya harici santral hedeflerini kuyruk bazında yönetin.</p></div>
+              {hasWorkspacePermission('transfer-targets.manage') && <button className="primary-action" disabled={!selectedCompanyId} type="button" onClick={() => void openTransferTarget()}><Plus size={16} /> Yeni hedef</button>}
+            </div>
+            <PagedGrid
+              actionsLabel="Yönet"
+              columns={transferTargetGridColumns}
+              defaultSortBy="Priority"
+              defaultSortDirection="asc"
+              emptyAction={hasWorkspacePermission('transfer-targets.manage') ? <button className="primary-action" type="button" onClick={() => void openTransferTarget()}><Plus size={15} /> İlk hedefi ekle</button> : undefined}
+              emptyDescription="Önce kuyruk ve telefoni bağlantısını tanımlayın; ardından SIP dahili, +90 telefon veya harici SIP URI ekleyin."
+              emptyTitle="Aktarım hedefi bulunmuyor"
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryTransferTargets(selectedCompanyId, request) : emptyPage(request)}
+              onRowClick={(row) => void openTransferTarget(row)}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              renderActions={hasWorkspacePermission('transfer-targets.manage') ? (row) => <div className="grid-row-actions"><button aria-label={`${row.name} hedefini düzenle`} className="grid-edit-button" type="button" onClick={() => void openTransferTarget(row)}><Pencil size={15} /></button><button aria-label={`${row.name} hedefini sil`} className="grid-icon-button danger" type="button" onClick={() => void deleteTransferTarget(row)}><X size={15} /></button></div> : undefined}
+              rowKey={(row) => row.id}
+              searchPlaceholder="Hedef adı, kodu, numara veya SIP adresinde ara..."
+            />
+          </section>}
+
           {activeSection === 'agent-status' && <section className="panel company-panel">
             <div className="management-panel-header"><PanelTitle icon={<UserRound size={18} />} title="Temsilci Durumları" /><button aria-label="Durumları yenile" className="grid-icon-button" type="button" onClick={() => setGridRefreshVersion((version) => version + 1)}><RefreshCw size={16} /></button></div>
             <div className="paged-grid"><div className="paged-grid-table-shell"><table><thead><tr><th>Temsilci</th><th>Durum</th><th>Son değişiklik</th><th>Aktif çağrı</th></tr></thead><tbody>
@@ -2111,6 +2229,26 @@ function App() {
                 <div className="check-stack"><label className="check"><input checked={ruleDraft.isActive} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, isActive: event.target.checked })} /> Kural aktif</label><label className="check"><input checked={ruleDraft.appliesDuringBusinessHours} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, appliesDuringBusinessHours: event.target.checked })} /> Mesai saatlerinde uygula</label><label className="check"><input checked={ruleDraft.appliesAfterHours} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, appliesAfterHours: event.target.checked })} /> Mesai dışında uygula</label></div>
               </div>
               <footer className="form-drawer-footer"><button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsRuleFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={isFormSaving || !ruleDraft.name.trim()} type="button" onClick={createRule}>{isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} Kuralı kaydet</button></footer>
+            </aside>
+          </div>
+        )}
+
+        {isTransferTargetFormOpen && (
+          <div className="drawer-backdrop" role="presentation" onMouseDown={() => setIsTransferTargetFormOpen(false)}>
+            <aside aria-label={editingTransferTargetId ? 'Aktarım hedefini düzenle' : 'Yeni aktarım hedefi'} className="form-drawer" onMouseDown={(event) => event.stopPropagation()}>
+              <header className="form-drawer-header"><div><span>Telefon Altyapısı</span><h2>{editingTransferTargetId ? 'Aktarım hedefini düzenle' : 'Yeni aktarım hedefi'}</h2><p>AI görüşmeyi sonlandırmadan canlı temsilciye veya harici santrale devretsin.</p></div><button aria-label="Aktarım hedefi formunu kapat" className="grid-icon-button" type="button" onClick={() => setIsTransferTargetFormOpen(false)}><X size={17} /></button></header>
+              <div className="form-drawer-body">
+                <Field label="Çağrı kuyruğu" required><select required value={transferTargetDraft.queueId} onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, queueId: event.target.value, companyUserId: '' })}><option value="">Kuyruk seçin</option>{transferTargetOptions.queues.map((queue) => <option key={queue.id} value={queue.id}>{queue.name} · {queue.code}</option>)}</select></Field>
+                <div className="form-grid two"><Field label="Hedef kodu" required><input required value={transferTargetDraft.code} onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, code: event.target.value })} placeholder="SUPPORT-1001" /></Field><Field label="Hedef adı" required><input required value={transferTargetDraft.name} onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, name: event.target.value })} placeholder="Türkçe destek dahili" /></Field></div>
+                <Field label="Hedef türü" required><select required value={String(transferTargetDraft.targetType)} onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, targetType: event.target.value as TransferTargetType, providerConnectionId: '', destination: '' })}><option value="SipExtension">Asterisk SIP dahili</option><option value="ExternalPhoneNumber">Cep veya sabit telefon</option><option value="ExternalSipUri">Harici SIP santral</option><option value="NetgsmExtensionOrQueue">Netsantral dahili / kuyruk</option></select></Field>
+                {(String(transferTargetDraft.targetType) === 'ExternalPhoneNumber' || String(transferTargetDraft.targetType) === 'NetgsmExtensionOrQueue') && <Field label="Telefon sağlayıcı bağlantısı" required><select required value={transferTargetDraft.providerConnectionId} onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, providerConnectionId: event.target.value })}><option value="">Sağlayıcı seçin</option>{transferTargetOptions.providers.filter((provider) => String(transferTargetDraft.targetType) !== 'NetgsmExtensionOrQueue' || String(provider.providerType) === 'Netgsm' || provider.providerType === 3).map((provider) => <option key={provider.id} value={provider.id}>{provider.name} · {String(provider.providerType)}</option>)}</select></Field>}
+                <Field label={String(transferTargetDraft.targetType) === 'ExternalPhoneNumber' ? 'Telefon numarası' : String(transferTargetDraft.targetType) === 'ExternalSipUri' ? 'SIP URI' : String(transferTargetDraft.targetType) === 'NetgsmExtensionOrQueue' ? 'Netsantral dahili / kuyruk kodu' : 'PJSIP dahili'} required><input required value={transferTargetDraft.destination} onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, destination: event.target.value })} placeholder={String(transferTargetDraft.targetType) === 'ExternalPhoneNumber' ? '+905321234567' : String(transferTargetDraft.targetType) === 'ExternalSipUri' ? 'sip:destek@santral.firma.com' : '1001'} /></Field>
+                <Field label="Temsilci hesabı"><select disabled={!transferTargetDraft.queueId} value={transferTargetDraft.companyUserId} onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, companyUserId: event.target.value })}><option value="">Kuyruğun genel hedefi</option>{transferTargetOptions.agents.filter((agent) => agent.queueId.toString() === transferTargetDraft.queueId).map((agent) => <option key={agent.companyUserId} value={agent.companyUserId}>{agent.displayName} · {agent.email}</option>)}</select></Field>
+                <div className="form-grid two"><Field label="Öncelik" required><input min="1" max="9999" required type="number" value={transferTargetDraft.priority} onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, priority: Number(event.target.value) })} /></Field><Field label="Çalma süresi (sn)" required><input min="5" max="120" required type="number" value={transferTargetDraft.ringTimeoutSeconds} onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, ringTimeoutSeconds: Number(event.target.value) })} /></Field></div>
+                <Field label="Not"><textarea value={transferTargetDraft.notes} onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, notes: event.target.value })} placeholder="Mesai dışı kullanım veya santral açıklaması" /></Field>
+                <div className="check-stack"><label className="check"><input checked={transferTargetDraft.isFallback} type="checkbox" onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, isFallback: event.target.checked })} /> Ana hedefler cevap vermezse yedek olarak kullan</label><label className="check"><input checked={transferTargetDraft.isActive} type="checkbox" onChange={(event) => setTransferTargetDraft({ ...transferTargetDraft, isActive: event.target.checked })} /> Aktarım hedefi aktif</label></div>
+              </div>
+              <footer className="form-drawer-footer"><button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsTransferTargetFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={isFormSaving || !transferTargetDraft.queueId || !transferTargetDraft.code.trim() || !transferTargetDraft.name.trim() || !transferTargetDraft.destination.trim() || ((String(transferTargetDraft.targetType) === 'ExternalPhoneNumber' || String(transferTargetDraft.targetType) === 'NetgsmExtensionOrQueue') && !transferTargetDraft.providerConnectionId)} type="button" onClick={saveTransferTarget}>{isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} {editingTransferTargetId ? 'Hedefi güncelle' : 'Hedefi kaydet'}</button></footer>
             </aside>
           </div>
         )}

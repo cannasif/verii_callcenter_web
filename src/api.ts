@@ -227,6 +227,9 @@ export type AgentPresenceStatus = 'Offline' | 'Available' | 'Busy' | 'WrapUp' | 
 export interface AgentPresence { companyUserId: number; userId: number; displayName: string; email: string; status: AgentPresenceStatus; reasonCode?: string | null; statusChangedAtUtc: string; lastHeartbeatAtUtc?: string | null; activeCallCorrelationId?: string | null; }
 export type CallSessionStatus = 'Created' | 'Ringing' | 'Queued' | 'Assigned' | 'Connected' | 'WrapUp' | 'Completed' | 'Abandoned' | 'Failed' | number;
 export interface CallSession { id: number; companyId: number; correlationId: string; direction: 'Inbound' | 'Outbound' | number; status: CallSessionStatus; channel: string; providerCallId?: string | null; callerNumberMasked?: string | null; calledNumber?: string | null; queueId?: number | null; queueName?: string | null; assignedCompanyUserId?: number | null; assignedAgentName?: string | null; createdAtUtc: string; queuedAtUtc?: string | null; answeredAtUtc?: string | null; endedAtUtc?: string | null; endReason?: string | null; }
+export type TransferTargetType = 'SipExtension' | 'ExternalPhoneNumber' | 'ExternalSipUri' | 'NetgsmExtensionOrQueue' | number;
+export interface TransferTarget { id: number; companyId: number; queueId: number; queueName: string; companyUserId?: number | null; companyUserName?: string | null; providerConnectionId?: number | null; providerConnectionName?: string | null; code: string; name: string; targetType: TransferTargetType; destination: string; priority: number; ringTimeoutSeconds: number; isFallback: boolean; isActive: boolean; notes?: string | null; }
+export interface TransferTargetOptions { queues: Array<{ id: number; code: string; name: string }>; providers: Array<{ id: number; name: string; providerType: string | number }>; agents: Array<{ companyUserId: number; queueId: number; displayName: string; email: string }>; }
 
 function unwrapPaged<T>(response: ApiResponse<PagedResponse<T>>): PagedResponse<T> {
   if (!response.success || !response.data) {
@@ -376,4 +379,14 @@ export const callCenterApi = {
     api.post<ApiResponse<PagedResponse<CallSession>>>(`/api/companies/${companyId}/operations/call-sessions/query`, request).then((x) => unwrapPaged(x.data)),
   assignNextAvailableAgent: (companyId: number, sessionId: number) =>
     api.post<CallSession>(`/api/companies/${companyId}/operations/call-sessions/${sessionId}/assign-next-agent`).then((x) => x.data),
+  transferTargetOptions: (companyId: number) =>
+    api.get<TransferTargetOptions>(`/api/companies/${companyId}/operations/transfer-targets/options`).then((x) => x.data),
+  queryTransferTargets: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<TransferTarget>>>(`/api/companies/${companyId}/operations/transfer-targets/query`, request).then((x) => unwrapPaged(x.data)),
+  createTransferTarget: (companyId: number, payload: Omit<TransferTarget, 'id' | 'companyId' | 'queueName' | 'companyUserName' | 'providerConnectionName'>) =>
+    api.post<TransferTarget>(`/api/companies/${companyId}/operations/transfer-targets`, payload).then((x) => x.data),
+  updateTransferTarget: (companyId: number, targetId: number, payload: Omit<TransferTarget, 'id' | 'companyId' | 'queueName' | 'companyUserName' | 'providerConnectionName'>) =>
+    api.put<TransferTarget>(`/api/companies/${companyId}/operations/transfer-targets/${targetId}`, payload).then((x) => x.data),
+  deleteTransferTarget: (companyId: number, targetId: number) =>
+    api.delete(`/api/companies/${companyId}/operations/transfer-targets/${targetId}`),
 };
