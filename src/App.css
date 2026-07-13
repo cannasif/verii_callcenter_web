@@ -1741,3 +1741,31 @@ input:disabled {
     border-radius: 14px 14px 0 0;
   }
 }
+.speech-language-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.speech-language-row {
+  align-items: center;
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto auto 36px;
+  min-height: 58px;
+  padding: 8px 10px;
+}
+
+.empty-inline {
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  padding: 18px;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .speech-language-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

@@ -194,6 +194,37 @@ export interface AiAssistantProfile {
   handoffDepartmentId?: number | null;
 }
 
+export type SpeechProvider = 'AzureSpeech' | 'GoogleCloudSpeech' | 'Other';
+export type LanguageIdentificationMode = 'Disabled' | 'AtStart' | 'Continuous';
+
+export interface SpeechLanguage {
+  id: number;
+  locale: string;
+  displayName: string;
+  voiceName: string;
+  recognitionModel?: string | null;
+  customSpeechEndpointReference?: string | null;
+  phraseHints?: string | null;
+  priority: number;
+  isActive: boolean;
+}
+
+export interface SpeechProfile {
+  id: number;
+  companyId: number;
+  provider: SpeechProvider;
+  region: string;
+  credentialSecretReference: string;
+  languageIdentificationMode: LanguageIdentificationMode;
+  primaryLocale: string;
+  bargeInEnabled: boolean;
+  automaticPunctuationEnabled: boolean;
+  initialSilenceTimeoutMs: number;
+  endSilenceTimeoutMs: number;
+  isActive: boolean;
+  languages: SpeechLanguage[];
+}
+
 export interface DecisionResult {
   companyId: number;
   isBusinessOpen: boolean;
@@ -228,7 +259,8 @@ export interface QueueAgentCandidate { companyUserId: number; userId: number; di
 export type AgentPresenceStatus = 'Offline' | 'Available' | 'Busy' | 'WrapUp' | 'Break' | number;
 export interface AgentPresence { companyUserId: number; userId: number; displayName: string; email: string; status: AgentPresenceStatus; reasonCode?: string | null; statusChangedAtUtc: string; lastHeartbeatAtUtc?: string | null; activeCallCorrelationId?: string | null; }
 export type CallSessionStatus = 'Created' | 'Ringing' | 'Queued' | 'Assigned' | 'Connected' | 'WrapUp' | 'Completed' | 'Abandoned' | 'Failed' | number;
-export interface CallSession { id: number; companyId: number; correlationId: string; direction: 'Inbound' | 'Outbound' | number; status: CallSessionStatus; channel: string; providerCallId?: string | null; callerNumberMasked?: string | null; callerCountryCode?: string | null; isInternationalCaller: boolean; calledNumber?: string | null; inboundNumberName?: string | null; initialLocale?: string | null; queueId?: number | null; queueName?: string | null; assignedCompanyUserId?: number | null; assignedAgentName?: string | null; createdAtUtc: string; queuedAtUtc?: string | null; answeredAtUtc?: string | null; endedAtUtc?: string | null; endReason?: string | null; }
+export type CallRuntimeStatus = 'Pending' | 'Starting' | 'Listening' | 'Speaking' | 'Transferring' | 'Transferred' | 'Stopping' | 'Stopped' | 'Faulted' | number;
+export interface CallSession { id: number; companyId: number; correlationId: string; direction: 'Inbound' | 'Outbound' | number; status: CallSessionStatus; runtimeStatus: CallRuntimeStatus; channel: string; providerCallId?: string | null; callerNumberMasked?: string | null; callerCountryCode?: string | null; isInternationalCaller: boolean; calledNumber?: string | null; inboundNumberName?: string | null; initialLocale?: string | null; detectedLocale?: string | null; queueId?: number | null; queueName?: string | null; assignedCompanyUserId?: number | null; assignedAgentName?: string | null; transferAttemptCount: number; runtimeHeartbeatAtUtc?: string | null; createdAtUtc: string; queuedAtUtc?: string | null; answeredAtUtc?: string | null; endedAtUtc?: string | null; endReason?: string | null; }
 export type TransferTargetType = 'SipExtension' | 'ExternalPhoneNumber' | 'ExternalSipUri' | 'NetgsmExtensionOrQueue' | number;
 export interface TransferTarget { id: number; companyId: number; queueId: number; queueName: string; companyUserId?: number | null; companyUserName?: string | null; providerConnectionId?: number | null; providerConnectionName?: string | null; code: string; name: string; targetType: TransferTargetType; destination: string; priority: number; ringTimeoutSeconds: number; isFallback: boolean; isActive: boolean; notes?: string | null; }
 export interface TransferTargetOptions { queues: Array<{ id: number; code: string; name: string }>; providers: Array<{ id: number; name: string; providerType: string | number; allowInternationalOutbound: boolean }>; agents: Array<{ companyUserId: number; queueId: number; displayName: string; email: string }>; }
@@ -305,6 +337,14 @@ export const callCenterApi = {
     api.get<AiAssistantProfile>(`/api/companies/${companyId}/ai-assistant-profile`).then((x) => x.data),
   updateAiAssistantProfile: (companyId: number, payload: Omit<AiAssistantProfile, 'id' | 'companyId'>) =>
     api.put<AiAssistantProfile>(`/api/companies/${companyId}/ai-assistant-profile`, payload).then((x) => x.data),
+  speechProfile: (companyId: number) =>
+    api.get<SpeechProfile>(`/api/companies/${companyId}/speech-profile`).then((x) => x.data),
+  updateSpeechProfile: (companyId: number, payload: Omit<SpeechProfile, 'id' | 'companyId' | 'languages'>) =>
+    api.put<SpeechProfile>(`/api/companies/${companyId}/speech-profile`, payload).then((x) => x.data),
+  addSpeechLanguage: (companyId: number, payload: Omit<SpeechLanguage, 'id'>) =>
+    api.post<SpeechLanguage>(`/api/companies/${companyId}/speech-profile/languages`, payload).then((x) => x.data),
+  deleteSpeechLanguage: (companyId: number, id: number) =>
+    api.delete(`/api/companies/${companyId}/speech-profile/languages/${id}`),
   simulate: (payload: {
     companyId: number;
     occurredAt: string;

@@ -41,6 +41,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sun,
+  Trash2,
   Moon,
   UserRound,
   X,
@@ -73,6 +74,8 @@ import {
   type PagedResponse,
   type RoutingAction,
   type RoutingRule,
+  type SpeechLanguage,
+  type SpeechProfile,
   type QueueDistributionStrategy,
   type QueueMember,
   type QueueAgentCandidate,
@@ -138,7 +141,7 @@ const loginLanguages = [
 
 type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
-type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'telephony-connections' | 'phone-numbers' | 'departments' | 'queues' | 'transfer-targets' | 'agent-status' | 'rules' | 'ai-profile' | 'simulator' | 'call-sessions' | 'logs' | 'users' | 'roles';
+type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'telephony-connections' | 'phone-numbers' | 'departments' | 'queues' | 'transfer-targets' | 'agent-status' | 'rules' | 'ai-profile' | 'speech-profile' | 'simulator' | 'call-sessions' | 'logs' | 'users' | 'roles';
 type WorkspaceGroup = 'company-management' | 'telephony' | 'operation' | 'ai-operation' | 'monitoring' | 'access-management';
 
 const defaultExpandedWorkspaceGroups: Record<WorkspaceGroup, boolean> = {
@@ -173,6 +176,7 @@ const workspacePaths: Record<WorkspaceSection, string> = {
   'agent-status': '/operations/agent-status',
   rules: '/operations/routing-rules',
   'ai-profile': '/ai-operations/assistant-profile',
+  'speech-profile': '/ai-operations/speech-profile',
   simulator: '/monitoring/decision-simulator',
   'call-sessions': '/monitoring/call-sessions',
   logs: '/monitoring/conversation-logs',
@@ -188,6 +192,7 @@ const legacyWorkspacePaths: Partial<Record<string, WorkspaceSection>> = {
   '/operasyon/aktarim-hedefleri': 'transfer-targets',
   '/operasyon/yonlendirme-kurallari': 'rules',
   '/ai-operasyon/asistan-profili': 'ai-profile',
+  '/ai-operasyon/konusma-profili': 'speech-profile',
   '/izleme/karar-simulasyonu': 'simulator',
   '/izleme/konusma-loglari': 'logs',
   '/erisim/kullanicilar': 'users',
@@ -618,6 +623,10 @@ function defaultAiProfile(companyId: number | null = null): AiAssistantProfile {
   };
 }
 
+function defaultSpeechProfile(companyId: number | null = null): SpeechProfile {
+  return { id: 0, companyId: companyId ?? 0, provider: 'AzureSpeech', region: 'westeurope', credentialSecretReference: 'env://AZURE_SPEECH_KEY', languageIdentificationMode: 'AtStart', primaryLocale: 'tr-TR', bargeInEnabled: true, automaticPunctuationEnabled: true, initialSilenceTimeoutMs: 5000, endSilenceTimeoutMs: 800, isActive: true, languages: [] };
+}
+
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -641,6 +650,9 @@ function App() {
   const [permissions, setPermissions] = useState<PermissionDefinition[]>([]);
   const [companyRoles, setCompanyRoles] = useState<CompanyRole[]>([]);
   const [aiProfile, setAiProfile] = useState<AiAssistantProfile>(() => defaultAiProfile());
+  const [speechProfile, setSpeechProfile] = useState<SpeechProfile>(() => defaultSpeechProfile());
+  const [speechLanguageDraft, setSpeechLanguageDraft] = useState({ locale: 'tr-TR', displayName: 'Türkçe', voiceName: 'tr-TR-EmelNeural', recognitionModel: '', customSpeechEndpointReference: '', phraseHints: '', priority: 100, isActive: true });
+  const [isSpeechSaving, setIsSpeechSaving] = useState(false);
   const [isAiProfileLoading, setIsAiProfileLoading] = useState(false);
   const [isAiProfileSaving, setIsAiProfileSaving] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
@@ -778,6 +790,7 @@ function App() {
       { id: 'agent-status' as const, group: 'operation' as const, permission: 'agent-status.view', title: 'Temsilci Durumları', description: 'Uygunluk, çağrı ve mola durumları', icon: <UserRound size={16} /> },
       { id: 'rules' as const, group: 'operation' as const, permission: 'routing.view', title: 'Yönlendirme Kuralları', description: 'AI, canlı aktarım ve aksiyonlar', icon: <GitBranch size={16} /> },
       { id: 'ai-profile' as const, group: 'ai-operation' as const, permission: 'ai.view', title: 'AI Asistan Profili', description: 'Yanıt, güven ve temsilciye devir politikası', icon: <Bot size={16} /> },
+      { id: 'speech-profile' as const, group: 'ai-operation' as const, permission: 'speech.view', title: 'Konuşma ve Diller', description: 'STT, TTS, dil, aksan ve ses profilleri', icon: <Globe size={16} /> },
       { id: 'simulator' as const, group: 'monitoring' as const, permission: 'simulator.execute', title: 'Karar Simülasyonu', description: 'Kural sonucunu test et', icon: <Play size={16} /> },
       { id: 'call-sessions' as const, group: 'monitoring' as const, permission: 'calls.view', title: 'Çağrı Oturumları', description: 'Aktif ve tamamlanan çağrı yaşam döngüsü', icon: <Headphones size={16} /> },
       { id: 'logs' as const, group: 'monitoring' as const, permission: 'logs.view', title: 'Konuşma Logları', description: 'Çağrı karar kayıtları', icon: <History size={16} /> },
@@ -855,7 +868,9 @@ function App() {
     { key: 'direction', label: 'Yön', sortKey: 'Direction', width: '110px', render: (row) => row.isInternationalCaller ? <span className="data-badge info">Yurt dışı</span> : String(row.direction) === 'Inbound' || row.direction === 0 ? 'Gelen' : 'Giden' },
     { key: 'queue', label: 'Kuyruk', width: '150px', render: (row) => row.queueName ?? '-' },
     { key: 'agent', label: 'Temsilci', width: '160px', render: (row) => row.assignedAgentName ?? '-' },
-    { key: 'status', label: 'Durum', sortKey: 'Status', width: '120px', render: (row) => <span className="data-badge info">{String(row.status)}</span> },
+    { key: 'language', label: 'Dil', width: '90px', render: (row) => row.detectedLocale ?? row.initialLocale ?? '-' },
+    { key: 'runtime', label: 'Canlı durum', width: '130px', render: (row) => <span className={String(row.runtimeStatus) === 'Faulted' ? 'data-badge' : 'data-badge info'}>{String(row.runtimeStatus)}</span> },
+    { key: 'status', label: 'Oturum', sortKey: 'Status', width: '110px', render: (row) => <span className="data-badge info">{String(row.status)}</span> },
   ], []);
   const telephonyConnectionGridColumns = useMemo<PagedGridColumn<TelephonyProviderConnection>[]>(() => [
     { key: 'connection', label: 'Bağlantı', sortKey: 'Name', render: (row) => <span className="primary-cell"><strong>{row.name}</strong><small>{row.code} · {String(row.providerType)}</small></span> },
@@ -1116,18 +1131,20 @@ function App() {
     setStatus('Firma kuralları yükleniyor');
     const can = (permission: string) => context?.isSuperAdmin || context?.permissionCodes?.includes(permission);
     setIsAiProfileLoading(can('ai.view') ?? false);
-    const [hoursData, departmentData, permissionData, roleData, aiProfileData] = await Promise.all([
+    const [hoursData, departmentData, permissionData, roleData, aiProfileData, speechProfileData] = await Promise.all([
       can('calendar.view') ? callCenterApi.businessHours(companyId) : Promise.resolve([]),
       can('departments.view') ? callCenterApi.departments(companyId) : Promise.resolve([]),
       can('roles.view') ? callCenterApi.permissions(companyId) : Promise.resolve([]),
       can('roles.view') || can('users.manage') ? callCenterApi.companyRoles(companyId) : Promise.resolve([]),
       can('ai.view') ? callCenterApi.aiAssistantProfile(companyId) : Promise.resolve(defaultAiProfile(companyId)),
+      can('speech.view') ? callCenterApi.speechProfile(companyId) : Promise.resolve(defaultSpeechProfile(companyId)),
     ]);
     setBusinessHours(hoursData);
     setDepartments(departmentData);
     setPermissions(permissionData);
     setCompanyRoles(roleData);
     setAiProfile(aiProfileData);
+    setSpeechProfile(speechProfileData);
     setIsAiProfileLoading(false);
     setStatus('Hazır');
   }
@@ -1161,6 +1178,68 @@ function App() {
       setStatus('AI asistan profili kaydedilemedi');
     } finally {
       setIsAiProfileSaving(false);
+    }
+  }
+
+  async function saveSpeechProfile() {
+    if (!selectedCompanyId || !hasWorkspacePermission('speech.manage')) return;
+    setIsSpeechSaving(true);
+    setStatus('Konuşma profili kaydediliyor');
+    try {
+      const saved = await callCenterApi.updateSpeechProfile(selectedCompanyId, {
+        provider: speechProfile.provider,
+        region: speechProfile.region,
+        credentialSecretReference: speechProfile.credentialSecretReference,
+        languageIdentificationMode: speechProfile.languageIdentificationMode,
+        primaryLocale: speechProfile.primaryLocale,
+        bargeInEnabled: speechProfile.bargeInEnabled,
+        automaticPunctuationEnabled: speechProfile.automaticPunctuationEnabled,
+        initialSilenceTimeoutMs: Number(speechProfile.initialSilenceTimeoutMs),
+        endSilenceTimeoutMs: Number(speechProfile.endSilenceTimeoutMs),
+        isActive: speechProfile.isActive,
+      });
+      setSpeechProfile(saved);
+      setStatus('Konuşma profili kaydedildi');
+    } catch {
+      setStatus('Konuşma profili kaydedilemedi');
+    } finally {
+      setIsSpeechSaving(false);
+    }
+  }
+
+  async function addSpeechLanguage() {
+    if (!selectedCompanyId || !speechProfile.id || !hasWorkspacePermission('speech.manage')) return;
+    setIsSpeechSaving(true);
+    try {
+      const saved = await callCenterApi.addSpeechLanguage(selectedCompanyId, {
+        locale: speechLanguageDraft.locale,
+        displayName: speechLanguageDraft.displayName,
+        voiceName: speechLanguageDraft.voiceName,
+        recognitionModel: speechLanguageDraft.recognitionModel || null,
+        customSpeechEndpointReference: speechLanguageDraft.customSpeechEndpointReference || null,
+        phraseHints: speechLanguageDraft.phraseHints || null,
+        priority: Number(speechLanguageDraft.priority),
+        isActive: speechLanguageDraft.isActive,
+      });
+      setSpeechProfile((current) => ({ ...current, languages: [...current.languages.filter((language) => language.locale !== saved.locale), saved].sort((a, b) => a.priority - b.priority) }));
+      setSpeechLanguageDraft((current) => ({ ...current, locale: '', displayName: '', voiceName: '', recognitionModel: '', customSpeechEndpointReference: '', phraseHints: '', priority: current.priority + 100 }));
+      setStatus('Dil profili eklendi');
+    } catch {
+      setStatus('Dil profili eklenemedi');
+    } finally {
+      setIsSpeechSaving(false);
+    }
+  }
+
+  async function deleteSpeechLanguage(language: SpeechLanguage) {
+    if (!selectedCompanyId || !hasWorkspacePermission('speech.manage') || !window.confirm(`${language.displayName} dil profilini silmek istiyor musunuz?`)) return;
+    setIsSpeechSaving(true);
+    try {
+      await callCenterApi.deleteSpeechLanguage(selectedCompanyId, language.id);
+      setSpeechProfile((current) => ({ ...current, languages: current.languages.filter((item) => item.id !== language.id) }));
+      setStatus('Dil profili silindi');
+    } finally {
+      setIsSpeechSaving(false);
     }
   }
 
@@ -2592,7 +2671,7 @@ function App() {
                   <div className="ai-section-heading"><strong>Çalışma Profili</strong><small>Model seçimi ve müşteriye görünen ilk yanıt.</small></div>
                   <label className="switch-row"><span><strong>AI asistanı aktif</strong><small>Uygun kurallarda çağrıyı AI karşılar.</small></span><input checked={aiProfile.isEnabled} disabled={!hasWorkspacePermission('ai.manage')} type="checkbox" onChange={(event) => setAiProfile({ ...aiProfile, isEnabled: event.target.checked })} /></label>
                   <div className="form-grid two">
-                    <Field label="Sağlayıcı" required><select disabled={!hasWorkspacePermission('ai.manage')} required value={aiProfile.provider} onChange={(event) => setAiProfile({ ...aiProfile, provider: event.target.value })}><option value="OpenAI">OpenAI</option><option value="Azure OpenAI">Azure OpenAI</option><option value="Custom">Özel sağlayıcı</option></select></Field>
+                    <Field label="Sağlayıcı" required><select disabled={!hasWorkspacePermission('ai.manage')} required value={aiProfile.provider} onChange={(event) => setAiProfile({ ...aiProfile, provider: event.target.value })}><option value="OpenAI">OpenAI</option><option value="OpenAICompatible">OpenAI uyumlu API</option></select></Field>
                     <Field label="Model adı" required><input disabled={!hasWorkspacePermission('ai.manage')} required value={aiProfile.modelName} onChange={(event) => setAiProfile({ ...aiProfile, modelName: event.target.value })} placeholder="gpt-4.1-mini" /></Field>
                   </div>
                   <div className="form-grid two">
@@ -2624,6 +2703,60 @@ function App() {
             )}
 
             {hasWorkspacePermission('ai.manage') && <div className="ai-profile-footer"><button className="save-button" disabled={isAiProfileLoading || isAiProfileSaving || !selectedCompanyId || !aiProfile.provider.trim() || !aiProfile.modelName.trim() || !aiProfile.apiBaseUrl.trim() || !aiProfile.credentialSecretReference.trim() || aiProfile.minimumConfidence < 0 || aiProfile.minimumConfidence > 1 || aiProfile.maxFallbackAttempts < 0 || aiProfile.maxFallbackAttempts > 5} type="button" onClick={saveAiProfile}>{isAiProfileSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} AI politikasını kaydet</button></div>}
+          </section>}
+
+          {activeSection === 'speech-profile' && <section className="panel company-panel ai-profile-panel">
+            <div className="management-panel-header">
+              <div>
+                <PanelTitle icon={<Globe size={18} />} title="Konuşma ve Dil Profili" />
+                <p className="panel-helper">Canlı çağrıda konuşmayı yazıya, yanıtı sese dönüştüren sağlayıcıyı; dil, aksan ve sesleri firma bazında yönetin.</p>
+              </div>
+              <span className={speechProfile.isActive ? 'definition-status ai-enabled' : 'definition-status'}>{speechProfile.isActive ? 'Konuşma servisi açık' : 'Konuşma servisi kapalı'}</span>
+            </div>
+
+            <div className="ai-profile-grid">
+              <div className="ai-profile-section">
+                <div className="ai-section-heading"><strong>Sağlayıcı Bağlantısı</strong><small>İlk canlı test Azure Speech ile hazırlanmıştır.</small></div>
+                <label className="switch-row"><span><strong>Konuşma servisi aktif</strong><small>STT ve TTS yalnızca aktif profilde çalışır.</small></span><input checked={speechProfile.isActive} disabled={!hasWorkspacePermission('speech.manage')} type="checkbox" onChange={(event) => setSpeechProfile({ ...speechProfile, isActive: event.target.checked })} /></label>
+                <div className="form-grid two">
+                  <Field label="Sağlayıcı" required><select disabled={!hasWorkspacePermission('speech.manage')} value={speechProfile.provider} onChange={(event) => setSpeechProfile({ ...speechProfile, provider: event.target.value as SpeechProfile['provider'] })}><option value="AzureSpeech">Azure Speech</option></select></Field>
+                  <Field label="Azure bölgesi" required><input disabled={!hasWorkspacePermission('speech.manage')} value={speechProfile.region} onChange={(event) => setSpeechProfile({ ...speechProfile, region: event.target.value })} placeholder="westeurope" /></Field>
+                  <Field label="Anahtar secret referansı" required><input disabled={!hasWorkspacePermission('speech.manage')} value={speechProfile.credentialSecretReference} onChange={(event) => setSpeechProfile({ ...speechProfile, credentialSecretReference: event.target.value })} placeholder="env://AZURE_SPEECH_KEY" /></Field>
+                  <Field label="Dil algılama"><select disabled={!hasWorkspacePermission('speech.manage')} value={speechProfile.languageIdentificationMode} onChange={(event) => setSpeechProfile({ ...speechProfile, languageIdentificationMode: event.target.value as SpeechProfile['languageIdentificationMode'] })}><option value="Disabled">Kapalı</option><option value="AtStart">Çağrı başında</option><option value="Continuous">Konuşma boyunca</option></select></Field>
+                  <Field label="Birincil dil" required><input disabled={!hasWorkspacePermission('speech.manage')} value={speechProfile.primaryLocale} onChange={(event) => setSpeechProfile({ ...speechProfile, primaryLocale: event.target.value })} placeholder="tr-TR" /></Field>
+                  <Field label="İlk sessizlik (ms)" required><input disabled={!hasWorkspacePermission('speech.manage')} min="1000" step="100" type="number" value={speechProfile.initialSilenceTimeoutMs} onChange={(event) => setSpeechProfile({ ...speechProfile, initialSilenceTimeoutMs: Number(event.target.value) })} /></Field>
+                  <Field label="Cümle sonu sessizliği (ms)" required><input disabled={!hasWorkspacePermission('speech.manage')} min="200" step="100" type="number" value={speechProfile.endSilenceTimeoutMs} onChange={(event) => setSpeechProfile({ ...speechProfile, endSilenceTimeoutMs: Number(event.target.value) })} /></Field>
+                </div>
+                <div className="check-stack ai-policy-options">
+                  <label className="check"><input checked={speechProfile.bargeInEnabled} disabled={!hasWorkspacePermission('speech.manage')} type="checkbox" onChange={(event) => setSpeechProfile({ ...speechProfile, bargeInEnabled: event.target.checked })} /> Arayan konuştuğunda sesli yanıtı kes</label>
+                  <label className="check"><input checked={speechProfile.automaticPunctuationEnabled} disabled={!hasWorkspacePermission('speech.manage')} type="checkbox" onChange={(event) => setSpeechProfile({ ...speechProfile, automaticPunctuationEnabled: event.target.checked })} /> Otomatik noktalama</label>
+                </div>
+                {hasWorkspacePermission('speech.manage') && <button className="save-button" disabled={isSpeechSaving || !selectedCompanyId || !speechProfile.region.trim() || !speechProfile.credentialSecretReference.trim() || !speechProfile.primaryLocale.trim()} type="button" onClick={saveSpeechProfile}>{isSpeechSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} Profili kaydet</button>}
+              </div>
+
+              <div className="ai-profile-section">
+                <div className="ai-section-heading"><strong>Diller, Aksanlar ve Sesler</strong><small>Öncelik sırası dil algılama adaylarını belirler.</small></div>
+                {hasWorkspacePermission('speech.manage') && <>
+                  <div className="form-grid two">
+                    <Field label="Locale" required><input value={speechLanguageDraft.locale} onChange={(event) => setSpeechLanguageDraft({ ...speechLanguageDraft, locale: event.target.value })} placeholder="tr-TR" /></Field>
+                    <Field label="Görünen ad" required><input value={speechLanguageDraft.displayName} onChange={(event) => setSpeechLanguageDraft({ ...speechLanguageDraft, displayName: event.target.value })} placeholder="Türkçe (Türkiye)" /></Field>
+                    <Field label="TTS ses adı" required><input value={speechLanguageDraft.voiceName} onChange={(event) => setSpeechLanguageDraft({ ...speechLanguageDraft, voiceName: event.target.value })} placeholder="tr-TR-EmelNeural" /></Field>
+                    <Field label="Öncelik"><input min="0" type="number" value={speechLanguageDraft.priority} onChange={(event) => setSpeechLanguageDraft({ ...speechLanguageDraft, priority: Number(event.target.value) })} /></Field>
+                  </div>
+                  <Field label="Kelime / marka ipuçları"><input value={speechLanguageDraft.phraseHints} onChange={(event) => setSpeechLanguageDraft({ ...speechLanguageDraft, phraseHints: event.target.value })} placeholder="V3RII, ürün adları, şehirler" /></Field>
+                  <button className="primary-action" disabled={isSpeechSaving || !speechProfile.id || !speechLanguageDraft.locale.trim() || !speechLanguageDraft.displayName.trim() || !speechLanguageDraft.voiceName.trim()} type="button" onClick={addSpeechLanguage}><Plus size={16} /> Dil ekle</button>
+                  {!speechProfile.id && <p className="ai-secret-note">Dil eklemeden önce sağlayıcı profilini kaydedin.</p>}
+                </>}
+                <div className="speech-language-list">
+                  {speechProfile.languages.length === 0 ? <div className="empty-inline">Henüz dil ve ses profili tanımlanmadı.</div> : speechProfile.languages.map((language) => <div className="speech-language-row" key={language.id}>
+                    <span className="primary-cell"><strong>{language.displayName}</strong><small>{language.locale} · {language.voiceName}</small></span>
+                    <span className="data-badge info">#{language.priority}</span>
+                    <span className={language.isActive ? 'data-badge active' : 'data-badge'}>{language.isActive ? 'Aktif' : 'Pasif'}</span>
+                    {hasWorkspacePermission('speech.manage') && <button className="icon-button danger" title="Dil profilini sil" type="button" onClick={() => deleteSpeechLanguage(language)}><Trash2 size={15} /></button>}
+                  </div>)}
+                </div>
+              </div>
+            </div>
           </section>}
 
           {activeSection === 'users' && <section className="panel company-panel">
