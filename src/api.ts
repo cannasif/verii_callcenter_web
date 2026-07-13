@@ -226,10 +226,15 @@ export interface QueueAgentCandidate { companyUserId: number; userId: number; di
 export type AgentPresenceStatus = 'Offline' | 'Available' | 'Busy' | 'WrapUp' | 'Break' | number;
 export interface AgentPresence { companyUserId: number; userId: number; displayName: string; email: string; status: AgentPresenceStatus; reasonCode?: string | null; statusChangedAtUtc: string; lastHeartbeatAtUtc?: string | null; activeCallCorrelationId?: string | null; }
 export type CallSessionStatus = 'Created' | 'Ringing' | 'Queued' | 'Assigned' | 'Connected' | 'WrapUp' | 'Completed' | 'Abandoned' | 'Failed' | number;
-export interface CallSession { id: number; companyId: number; correlationId: string; direction: 'Inbound' | 'Outbound' | number; status: CallSessionStatus; channel: string; providerCallId?: string | null; callerNumberMasked?: string | null; calledNumber?: string | null; queueId?: number | null; queueName?: string | null; assignedCompanyUserId?: number | null; assignedAgentName?: string | null; createdAtUtc: string; queuedAtUtc?: string | null; answeredAtUtc?: string | null; endedAtUtc?: string | null; endReason?: string | null; }
+export interface CallSession { id: number; companyId: number; correlationId: string; direction: 'Inbound' | 'Outbound' | number; status: CallSessionStatus; channel: string; providerCallId?: string | null; callerNumberMasked?: string | null; callerCountryCode?: string | null; isInternationalCaller: boolean; calledNumber?: string | null; inboundNumberName?: string | null; initialLocale?: string | null; queueId?: number | null; queueName?: string | null; assignedCompanyUserId?: number | null; assignedAgentName?: string | null; createdAtUtc: string; queuedAtUtc?: string | null; answeredAtUtc?: string | null; endedAtUtc?: string | null; endReason?: string | null; }
 export type TransferTargetType = 'SipExtension' | 'ExternalPhoneNumber' | 'ExternalSipUri' | 'NetgsmExtensionOrQueue' | number;
 export interface TransferTarget { id: number; companyId: number; queueId: number; queueName: string; companyUserId?: number | null; companyUserName?: string | null; providerConnectionId?: number | null; providerConnectionName?: string | null; code: string; name: string; targetType: TransferTargetType; destination: string; priority: number; ringTimeoutSeconds: number; isFallback: boolean; isActive: boolean; notes?: string | null; }
-export interface TransferTargetOptions { queues: Array<{ id: number; code: string; name: string }>; providers: Array<{ id: number; name: string; providerType: string | number }>; agents: Array<{ companyUserId: number; queueId: number; displayName: string; email: string }>; }
+export interface TransferTargetOptions { queues: Array<{ id: number; code: string; name: string }>; providers: Array<{ id: number; name: string; providerType: string | number; allowInternationalOutbound: boolean }>; agents: Array<{ companyUserId: number; queueId: number; displayName: string; email: string }>; }
+export type TelephonyProviderType = 'GenericSip' | 'Twilio' | 'AzureCommunicationServices' | 'Netgsm' | 'Other' | number;
+export type SipTransport = 'Udp' | 'Tcp' | 'Tls' | number;
+export interface TelephonyProviderConnection { id: number; companyId: number; webhookEndpointId: string; code: string; name: string; providerType: TelephonyProviderType; transport: SipTransport; sipDomain?: string | null; outboundProxy?: string | null; authUsername?: string | null; credentialSecretReference?: string | null; webhookSigningSecretReference?: string | null; apiBaseUrl?: string | null; requestTimeoutSeconds: number; recordingEnabled: boolean; allowInternationalOutbound: boolean; isActive: boolean; phoneNumberCount: number; }
+export interface InboundPhoneNumber { id: number; companyId: number; providerConnectionId: number; providerName: string; defaultQueueId?: number | null; defaultQueueName?: string | null; e164Number: string; displayName: string; countryCode?: string | null; defaultLocale: string; acceptInbound: boolean; acceptInternationalInbound: boolean; allowOutboundCli: boolean; isActive: boolean; }
+export interface TelephonyOptions { connections: Array<{ id: number; code: string; name: string }>; queues: Array<{ id: number; code: string; name: string }>; }
 
 function unwrapPaged<T>(response: ApiResponse<PagedResponse<T>>): PagedResponse<T> {
   if (!response.success || !response.data) {
@@ -389,4 +394,22 @@ export const callCenterApi = {
     api.put<TransferTarget>(`/api/companies/${companyId}/operations/transfer-targets/${targetId}`, payload).then((x) => x.data),
   deleteTransferTarget: (companyId: number, targetId: number) =>
     api.delete(`/api/companies/${companyId}/operations/transfer-targets/${targetId}`),
+  telephonyOptions: (companyId: number) =>
+    api.get<TelephonyOptions>(`/api/companies/${companyId}/telephony/options`).then((x) => x.data),
+  queryTelephonyConnections: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<TelephonyProviderConnection>>>(`/api/companies/${companyId}/telephony/connections/query`, request).then((x) => unwrapPaged(x.data)),
+  createTelephonyConnection: (companyId: number, payload: Omit<TelephonyProviderConnection, 'id' | 'companyId' | 'webhookEndpointId' | 'phoneNumberCount'>) =>
+    api.post<TelephonyProviderConnection>(`/api/companies/${companyId}/telephony/connections`, payload).then((x) => x.data),
+  updateTelephonyConnection: (companyId: number, id: number, payload: Omit<TelephonyProviderConnection, 'id' | 'companyId' | 'webhookEndpointId' | 'phoneNumberCount'>) =>
+    api.put<TelephonyProviderConnection>(`/api/companies/${companyId}/telephony/connections/${id}`, payload).then((x) => x.data),
+  deleteTelephonyConnection: (companyId: number, id: number) =>
+    api.delete(`/api/companies/${companyId}/telephony/connections/${id}`),
+  queryInboundPhoneNumbers: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<InboundPhoneNumber>>>(`/api/companies/${companyId}/telephony/numbers/query`, request).then((x) => unwrapPaged(x.data)),
+  createInboundPhoneNumber: (companyId: number, payload: Omit<InboundPhoneNumber, 'id' | 'companyId' | 'providerName' | 'defaultQueueName'>) =>
+    api.post<InboundPhoneNumber>(`/api/companies/${companyId}/telephony/numbers`, payload).then((x) => x.data),
+  updateInboundPhoneNumber: (companyId: number, id: number, payload: Omit<InboundPhoneNumber, 'id' | 'companyId' | 'providerName' | 'defaultQueueName'>) =>
+    api.put<InboundPhoneNumber>(`/api/companies/${companyId}/telephony/numbers/${id}`, payload).then((x) => x.data),
+  deleteInboundPhoneNumber: (companyId: number, id: number) =>
+    api.delete(`/api/companies/${companyId}/telephony/numbers/${id}`),
 };

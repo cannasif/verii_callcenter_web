@@ -30,9 +30,11 @@ import {
   PanelLeftOpen,
   Pencil,
   PhoneForwarded,
+  PhoneIncoming,
   Play,
   Plus,
   RefreshCw,
+  RadioTower,
   Rocket,
   Save,
   Search,
@@ -77,6 +79,11 @@ import {
   type TransferTarget,
   type TransferTargetOptions,
   type TransferTargetType,
+  type TelephonyProviderConnection,
+  type TelephonyOptions,
+  type TelephonyProviderType,
+  type SipTransport,
+  type InboundPhoneNumber,
 } from './api';
 
 const dayLabels = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
@@ -131,11 +138,12 @@ const loginLanguages = [
 
 type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
-type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'departments' | 'queues' | 'transfer-targets' | 'agent-status' | 'rules' | 'ai-profile' | 'simulator' | 'call-sessions' | 'logs' | 'users' | 'roles';
-type WorkspaceGroup = 'company-management' | 'operation' | 'ai-operation' | 'monitoring' | 'access-management';
+type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'telephony-connections' | 'phone-numbers' | 'departments' | 'queues' | 'transfer-targets' | 'agent-status' | 'rules' | 'ai-profile' | 'simulator' | 'call-sessions' | 'logs' | 'users' | 'roles';
+type WorkspaceGroup = 'company-management' | 'telephony' | 'operation' | 'ai-operation' | 'monitoring' | 'access-management';
 
 const defaultExpandedWorkspaceGroups: Record<WorkspaceGroup, boolean> = {
   'company-management': false,
+  telephony: false,
   operation: false,
   'ai-operation': false,
   monitoring: false,
@@ -157,6 +165,8 @@ const workspacePaths: Record<WorkspaceSection, string> = {
   company: '/company-management/company-profile',
   hours: '/company-management/business-hours',
   exceptions: '/company-management/calendar-exceptions',
+  'telephony-connections': '/telephony/connections',
+  'phone-numbers': '/telephony/inbound-numbers',
   departments: '/operations/departments',
   queues: '/operations/queues',
   'transfer-targets': '/operations/transfer-targets',
@@ -640,6 +650,11 @@ function App() {
   const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
   const [isQueueFormOpen, setIsQueueFormOpen] = useState(false);
   const [isTransferTargetFormOpen, setIsTransferTargetFormOpen] = useState(false);
+  const [isTelephonyConnectionFormOpen, setIsTelephonyConnectionFormOpen] = useState(false);
+  const [isInboundNumberFormOpen, setIsInboundNumberFormOpen] = useState(false);
+  const [editingTelephonyConnectionId, setEditingTelephonyConnectionId] = useState<number | null>(null);
+  const [editingInboundNumberId, setEditingInboundNumberId] = useState<number | null>(null);
+  const [telephonyOptions, setTelephonyOptions] = useState<TelephonyOptions>({ connections: [], queues: [] });
   const [editingTransferTargetId, setEditingTransferTargetId] = useState<number | null>(null);
   const [transferTargetOptions, setTransferTargetOptions] = useState<TransferTargetOptions>({ queues: [], providers: [], agents: [] });
   const [editingQueueId, setEditingQueueId] = useState<number | null>(null);
@@ -683,6 +698,8 @@ function App() {
   const [queueDraft, setQueueDraft] = useState({ departmentId: '', code: '', name: '', description: '', priority: 100, maxWaitingCalls: 50, maxWaitSeconds: 300, wrapUpSeconds: 30, distributionStrategy: 'LongestIdle', isActive: true });
   const [queueMemberDraft, setQueueMemberDraft] = useState({ companyUserId: '', skillLevel: 3, priority: 100 });
   const [transferTargetDraft, setTransferTargetDraft] = useState({ queueId: '', companyUserId: '', providerConnectionId: '', code: '', name: '', targetType: 'SipExtension' as TransferTargetType, destination: '', priority: 100, ringTimeoutSeconds: 20, isFallback: false, isActive: true, notes: '' });
+  const [telephonyConnectionDraft, setTelephonyConnectionDraft] = useState({ code: '', name: '', providerType: 'Netgsm' as TelephonyProviderType, transport: 'Tls' as SipTransport, sipDomain: '', outboundProxy: '', authUsername: '', credentialSecretReference: '', webhookSigningSecretReference: '', apiBaseUrl: '', requestTimeoutSeconds: 15, recordingEnabled: true, allowInternationalOutbound: false, isActive: true });
+  const [inboundNumberDraft, setInboundNumberDraft] = useState({ providerConnectionId: '', defaultQueueId: '', e164Number: '', displayName: '', countryCode: 'TR', defaultLocale: 'tr-TR', acceptInbound: true, acceptInternationalInbound: true, allowOutboundCli: false, isActive: true });
   const [ruleDraft, setRuleDraft] = useState({
     name: '',
     priority: 100,
@@ -751,6 +768,8 @@ function App() {
       { id: 'company' as const, group: 'company-management' as const, permission: 'company.view', title: 'Firma Kartı', description: 'Ana firma kartı ve yasal bilgiler', icon: <Building2 size={16} /> },
       { id: 'hours' as const, group: 'company-management' as const, permission: 'calendar.view', title: 'Çalışma Saatleri', description: 'Haftalık açık ve kapalı saatler', icon: <Clock3 size={16} /> },
       { id: 'exceptions' as const, group: 'company-management' as const, permission: 'calendar.view', title: 'Özel Günler', description: 'Tatil, yarım gün ve kapalı günler', icon: <CalendarDays size={16} /> },
+      { id: 'telephony-connections' as const, group: 'telephony' as const, permission: 'telephony.view', title: 'Telefon Bağlantıları', description: 'Netgsm, SIP trunk ve dış arama politikası', icon: <RadioTower size={16} /> },
+      { id: 'phone-numbers' as const, group: 'telephony' as const, permission: 'telephony.view', title: 'Gelen Numaralar', description: 'DID, ülke, dil ve kuyruk eşleştirmesi', icon: <PhoneIncoming size={16} /> },
       { id: 'departments' as const, group: 'operation' as const, permission: 'departments.view', title: 'Departman ve Kuyruklar', description: 'Ekip, kuyruk ve dil tanımları', icon: <Headphones size={16} /> },
       { id: 'queues' as const, group: 'operation' as const, permission: 'queues.view', title: 'Çağrı Kuyrukları', description: 'Kapasite, dağıtım ve bekleme politikaları', icon: <History size={16} /> },
       { id: 'transfer-targets' as const, group: 'operation' as const, permission: 'transfer-targets.view', title: 'Aktarım Hedefleri', description: 'SIP dahili, cep telefonu ve harici santral', icon: <PhoneForwarded size={16} /> },
@@ -773,6 +792,7 @@ function App() {
   const workspaceGroups = useMemo(
     () => [
       { id: 'company-management' as const, title: 'Firma Yönetimi', icon: <Building2 size={18} /> },
+      { id: 'telephony' as const, title: 'Telefon Altyapısı', icon: <RadioTower size={18} /> },
       { id: 'operation' as const, title: 'Operasyon Tanımları', icon: <SlidersHorizontal size={18} /> },
       { id: 'ai-operation' as const, title: 'AI Operasyon', icon: <Bot size={18} /> },
       { id: 'monitoring' as const, title: 'İzleme ve Test', icon: <History size={18} /> },
@@ -830,10 +850,26 @@ function App() {
   const callSessionGridColumns = useMemo<PagedGridColumn<CallSession>[]>(() => [
     { key: 'created', label: 'Başlangıç', sortKey: 'CreatedAtUtc', width: '170px', render: (row) => new Date(row.createdAtUtc).toLocaleString('tr-TR') },
     { key: 'correlation', label: 'Çağrı', render: (row) => <span className="primary-cell"><strong>{row.callerNumberMasked ?? 'Numara gizli'}</strong><small>{row.correlationId.slice(0, 12)}</small></span> },
-    { key: 'direction', label: 'Yön', sortKey: 'Direction', width: '100px', render: (row) => String(row.direction) === 'Inbound' || row.direction === 0 ? 'Gelen' : 'Giden' },
+    { key: 'direction', label: 'Yön', sortKey: 'Direction', width: '110px', render: (row) => row.isInternationalCaller ? <span className="data-badge info">Yurt dışı</span> : String(row.direction) === 'Inbound' || row.direction === 0 ? 'Gelen' : 'Giden' },
     { key: 'queue', label: 'Kuyruk', width: '150px', render: (row) => row.queueName ?? '-' },
     { key: 'agent', label: 'Temsilci', width: '160px', render: (row) => row.assignedAgentName ?? '-' },
     { key: 'status', label: 'Durum', sortKey: 'Status', width: '120px', render: (row) => <span className="data-badge info">{String(row.status)}</span> },
+  ], []);
+  const telephonyConnectionGridColumns = useMemo<PagedGridColumn<TelephonyProviderConnection>[]>(() => [
+    { key: 'connection', label: 'Bağlantı', sortKey: 'Name', render: (row) => <span className="primary-cell"><strong>{row.name}</strong><small>{row.code} · {String(row.providerType)}</small></span> },
+    { key: 'transport', label: 'Taşıma', sortKey: 'Transport', width: '100px', render: (row) => String(row.transport).toUpperCase() },
+    { key: 'endpoint', label: 'SIP / Proxy', width: '210px', render: (row) => row.sipDomain ?? row.outboundProxy ?? '-' },
+    { key: 'numbers', label: 'Numara', width: '90px', align: 'center', render: (row) => <span className="data-count">{row.phoneNumberCount}</span> },
+    { key: 'international', label: 'Yurt dışı çıkış', width: '130px', render: (row) => <span className={row.allowInternationalOutbound ? 'data-badge active' : 'data-badge'}>{row.allowInternationalOutbound ? 'İzinli' : 'Kapalı'}</span> },
+    { key: 'status', label: 'Durum', sortKey: 'IsActive', width: '100px', render: (row) => <span className={row.isActive ? 'data-badge active' : 'data-badge'}>{row.isActive ? 'Aktif' : 'Pasif'}</span> },
+  ], []);
+  const inboundNumberGridColumns = useMemo<PagedGridColumn<InboundPhoneNumber>[]>(() => [
+    { key: 'number', label: 'Gelen numara', sortKey: 'DisplayName', render: (row) => <span className="primary-cell"><strong>{row.displayName}</strong><small>{row.e164Number} · {row.countryCode ?? '-'}</small></span> },
+    { key: 'provider', label: 'Bağlantı', width: '170px', render: (row) => row.providerName },
+    { key: 'queue', label: 'Varsayılan kuyruk', width: '170px', render: (row) => row.defaultQueueName ?? 'Kural motoru' },
+    { key: 'locale', label: 'Başlangıç dili', sortKey: 'DefaultLocale', width: '120px', render: (row) => <span className="mono-cell">{row.defaultLocale}</span> },
+    { key: 'international', label: 'Yurt dışı gelen', width: '130px', render: (row) => <span className={row.acceptInternationalInbound ? 'data-badge active' : 'data-badge'}>{row.acceptInternationalInbound ? 'Kabul' : 'Engelli'}</span> },
+    { key: 'status', label: 'Durum', sortKey: 'IsActive', width: '100px', render: (row) => <span className={row.isActive && row.acceptInbound ? 'data-badge active' : 'data-badge'}>{row.isActive && row.acceptInbound ? 'Aktif' : 'Pasif'}</span> },
   ], []);
   const transferTargetGridColumns = useMemo<PagedGridColumn<TransferTarget>[]>(() => [
     { key: 'priority', label: 'Öncelik', sortKey: 'Priority', width: '90px', render: (row) => <span className="mono-cell">#{row.priority}</span> },
@@ -1332,6 +1368,123 @@ function App() {
     } catch {
       setQueueMembers((items) => items.map((item) => item.id === member.id ? member : item));
       setStatus('Kuyruk üyeliği güncellenemedi');
+    }
+  }
+
+  function openTelephonyConnection(connection?: TelephonyProviderConnection) {
+    setEditingTelephonyConnectionId(connection?.id ?? null);
+    setTelephonyConnectionDraft(connection ? {
+      code: connection.code,
+      name: connection.name,
+      providerType: connection.providerType,
+      transport: connection.transport,
+      sipDomain: connection.sipDomain ?? '',
+      outboundProxy: connection.outboundProxy ?? '',
+      authUsername: connection.authUsername ?? '',
+      credentialSecretReference: connection.credentialSecretReference ?? '',
+      webhookSigningSecretReference: connection.webhookSigningSecretReference ?? '',
+      apiBaseUrl: connection.apiBaseUrl ?? '',
+      requestTimeoutSeconds: connection.requestTimeoutSeconds,
+      recordingEnabled: connection.recordingEnabled,
+      allowInternationalOutbound: connection.allowInternationalOutbound,
+      isActive: connection.isActive,
+    } : { code: '', name: '', providerType: 'Netgsm', transport: 'Tls', sipDomain: '', outboundProxy: '', authUsername: '', credentialSecretReference: '', webhookSigningSecretReference: '', apiBaseUrl: '', requestTimeoutSeconds: 15, recordingEnabled: true, allowInternationalOutbound: false, isActive: true });
+    setIsTelephonyConnectionFormOpen(true);
+  }
+
+  async function saveTelephonyConnection() {
+    if (!selectedCompanyId || !telephonyConnectionDraft.code.trim() || !telephonyConnectionDraft.name.trim()) return;
+    setIsFormSaving(true);
+    setStatus('Telefon bağlantısı kaydediliyor');
+    try {
+      const payload = {
+        ...telephonyConnectionDraft,
+        sipDomain: telephonyConnectionDraft.sipDomain || null,
+        outboundProxy: telephonyConnectionDraft.outboundProxy || null,
+        authUsername: telephonyConnectionDraft.authUsername || null,
+        credentialSecretReference: telephonyConnectionDraft.credentialSecretReference || null,
+        webhookSigningSecretReference: telephonyConnectionDraft.webhookSigningSecretReference || null,
+        apiBaseUrl: telephonyConnectionDraft.apiBaseUrl || null,
+      };
+      if (editingTelephonyConnectionId) await callCenterApi.updateTelephonyConnection(selectedCompanyId, editingTelephonyConnectionId, payload);
+      else await callCenterApi.createTelephonyConnection(selectedCompanyId, payload);
+      setGridRefreshVersion((version) => version + 1);
+      setIsTelephonyConnectionFormOpen(false);
+      setStatus('Telefon bağlantısı kaydedildi');
+    } catch {
+      setStatus('Telefon bağlantısı kaydedilemedi');
+    } finally {
+      setIsFormSaving(false);
+    }
+  }
+
+  async function deleteTelephonyConnection(connection: TelephonyProviderConnection) {
+    if (!selectedCompanyId || !window.confirm(`${connection.name} bağlantısı silinsin mi?`)) return;
+    try {
+      await callCenterApi.deleteTelephonyConnection(selectedCompanyId, connection.id);
+      setGridRefreshVersion((version) => version + 1);
+      setStatus('Telefon bağlantısı silindi');
+    } catch {
+      setStatus('Aktif numarası bulunan bağlantı silinemez');
+    }
+  }
+
+  async function openInboundNumber(number?: InboundPhoneNumber) {
+    if (!selectedCompanyId) return;
+    setStatus('Telefon seçenekleri yükleniyor');
+    try {
+      const options = await callCenterApi.telephonyOptions(selectedCompanyId);
+      setTelephonyOptions(options);
+      setEditingInboundNumberId(number?.id ?? null);
+      setInboundNumberDraft(number ? {
+        providerConnectionId: number.providerConnectionId.toString(),
+        defaultQueueId: number.defaultQueueId?.toString() ?? '',
+        e164Number: number.e164Number,
+        displayName: number.displayName,
+        countryCode: number.countryCode ?? 'TR',
+        defaultLocale: number.defaultLocale,
+        acceptInbound: number.acceptInbound,
+        acceptInternationalInbound: number.acceptInternationalInbound,
+        allowOutboundCli: number.allowOutboundCli,
+        isActive: number.isActive,
+      } : { providerConnectionId: options.connections[0]?.id.toString() ?? '', defaultQueueId: '', e164Number: '', displayName: '', countryCode: 'TR', defaultLocale: 'tr-TR', acceptInbound: true, acceptInternationalInbound: true, allowOutboundCli: false, isActive: true });
+      setIsInboundNumberFormOpen(true);
+      setStatus('Hazır');
+    } catch {
+      setStatus('Telefon seçenekleri yüklenemedi');
+    }
+  }
+
+  async function saveInboundNumber() {
+    if (!selectedCompanyId || !inboundNumberDraft.providerConnectionId || !inboundNumberDraft.e164Number.trim() || !inboundNumberDraft.displayName.trim()) return;
+    setIsFormSaving(true);
+    setStatus('Gelen numara kaydediliyor');
+    try {
+      const payload = {
+        ...inboundNumberDraft,
+        providerConnectionId: Number(inboundNumberDraft.providerConnectionId),
+        defaultQueueId: inboundNumberDraft.defaultQueueId ? Number(inboundNumberDraft.defaultQueueId) : null,
+      };
+      if (editingInboundNumberId) await callCenterApi.updateInboundPhoneNumber(selectedCompanyId, editingInboundNumberId, payload);
+      else await callCenterApi.createInboundPhoneNumber(selectedCompanyId, payload);
+      setGridRefreshVersion((version) => version + 1);
+      setIsInboundNumberFormOpen(false);
+      setStatus('Gelen numara kaydedildi');
+    } catch {
+      setStatus('Gelen numara kaydedilemedi; E.164 formatını ve tekil numarayı kontrol edin');
+    } finally {
+      setIsFormSaving(false);
+    }
+  }
+
+  async function deleteInboundNumber(number: InboundPhoneNumber) {
+    if (!selectedCompanyId || !window.confirm(`${number.e164Number} gelen numarası silinsin mi?`)) return;
+    try {
+      await callCenterApi.deleteInboundPhoneNumber(selectedCompanyId, number.id);
+      setGridRefreshVersion((version) => version + 1);
+      setStatus('Gelen numara silindi');
+    } catch {
+      setStatus('Gelen numara silinemedi');
     }
   }
 
@@ -2283,6 +2436,50 @@ function App() {
             />
           </section>}
 
+          {activeSection === 'telephony-connections' && <section className="panel company-panel">
+            <div className="management-panel-header">
+              <div><PanelTitle icon={<RadioTower size={18} />} title="Telefon Bağlantıları" /><p className="panel-helper">Netgsm SIP trunk, Asterisk endpoint ve kontrollü uluslararası dış arama yetkisini firma bazında yönetin.</p></div>
+              {hasWorkspacePermission('telephony.manage') && <button className="primary-action" disabled={!selectedCompanyId} type="button" onClick={() => openTelephonyConnection()}><Plus size={16} /> Yeni bağlantı</button>}
+            </div>
+            <PagedGrid
+              actionsLabel="Yönet"
+              columns={telephonyConnectionGridColumns}
+              defaultSortBy="Name"
+              defaultSortDirection="asc"
+              emptyAction={hasWorkspacePermission('telephony.manage') ? <button className="primary-action" type="button" onClick={() => openTelephonyConnection()}><Plus size={15} /> İlk bağlantıyı ekle</button> : undefined}
+              emptyDescription="Gelen numara tanımlamadan önce Netgsm veya diğer SIP sağlayıcı bağlantısını oluşturun."
+              emptyTitle="Telefon bağlantısı bulunmuyor"
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryTelephonyConnections(selectedCompanyId, request) : emptyPage(request)}
+              onRowClick={openTelephonyConnection}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              renderActions={hasWorkspacePermission('telephony.manage') ? (row) => <div className="grid-row-actions"><button aria-label={`${row.name} bağlantısını düzenle`} className="grid-edit-button" type="button" onClick={() => openTelephonyConnection(row)}><Pencil size={15} /></button><button aria-label={`${row.name} bağlantısını sil`} className="grid-icon-button danger" type="button" onClick={() => void deleteTelephonyConnection(row)}><X size={15} /></button></div> : undefined}
+              rowKey={(row) => row.id}
+              searchPlaceholder="Bağlantı adı, kodu veya SIP domaininde ara..."
+            />
+          </section>}
+
+          {activeSection === 'phone-numbers' && <section className="panel company-panel">
+            <div className="management-panel-header">
+              <div><PanelTitle icon={<PhoneIncoming size={18} />} title="Gelen Numaralar" /><p className="panel-helper">Türkiye ve yurt dışı DID numaralarını varsayılan dil, kuyruk ve uluslararası kabul politikasıyla eşleştirin.</p></div>
+              {hasWorkspacePermission('telephony.manage') && <button className="primary-action" disabled={!selectedCompanyId} type="button" onClick={() => void openInboundNumber()}><Plus size={16} /> Yeni numara</button>}
+            </div>
+            <PagedGrid
+              actionsLabel="Yönet"
+              columns={inboundNumberGridColumns}
+              defaultSortBy="DisplayName"
+              defaultSortDirection="asc"
+              emptyAction={hasWorkspacePermission('telephony.manage') ? <button className="primary-action" type="button" onClick={() => void openInboundNumber()}><Plus size={15} /> İlk numarayı ekle</button> : undefined}
+              emptyDescription="Her numara ayrı ülke, başlangıç dili ve varsayılan çağrı kuyruğuna bağlanabilir."
+              emptyTitle="Gelen numara bulunmuyor"
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryInboundPhoneNumbers(selectedCompanyId, request) : emptyPage(request)}
+              onRowClick={(row) => void openInboundNumber(row)}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              renderActions={hasWorkspacePermission('telephony.manage') ? (row) => <div className="grid-row-actions"><button aria-label={`${row.e164Number} numarasını düzenle`} className="grid-edit-button" type="button" onClick={() => void openInboundNumber(row)}><Pencil size={15} /></button><button aria-label={`${row.e164Number} numarasını sil`} className="grid-icon-button danger" type="button" onClick={() => void deleteInboundNumber(row)}><X size={15} /></button></div> : undefined}
+              rowKey={(row) => row.id}
+              searchPlaceholder="Numara, ülke veya başlangıç dilinde ara..."
+            />
+          </section>}
+
           {activeSection === 'departments' && <section className="panel company-panel">
             <div className="management-panel-header">
               <PanelTitle icon={<Headphones size={18} />} title="Departman ve Kuyruklar" />
@@ -2608,6 +2805,40 @@ function App() {
                 <div className="check-stack"><label className="check"><input checked={ruleDraft.isActive} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, isActive: event.target.checked })} /> Kural aktif</label><label className="check"><input checked={ruleDraft.appliesDuringBusinessHours} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, appliesDuringBusinessHours: event.target.checked })} /> Mesai saatlerinde uygula</label><label className="check"><input checked={ruleDraft.appliesAfterHours} type="checkbox" onChange={(event) => setRuleDraft({ ...ruleDraft, appliesAfterHours: event.target.checked })} /> Mesai dışında uygula</label></div>
               </div>
               <footer className="form-drawer-footer"><button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsRuleFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={isFormSaving || !ruleDraft.name.trim()} type="button" onClick={createRule}>{isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} Kuralı kaydet</button></footer>
+            </aside>
+          </div>
+        )}
+
+        {isTelephonyConnectionFormOpen && (
+          <div className="drawer-backdrop" role="presentation" onMouseDown={() => setIsTelephonyConnectionFormOpen(false)}>
+            <aside aria-label={editingTelephonyConnectionId ? 'Telefon bağlantısını düzenle' : 'Yeni telefon bağlantısı'} className="form-drawer wide" onMouseDown={(event) => event.stopPropagation()}>
+              <header className="form-drawer-header"><div><span>Telefon Altyapısı</span><h2>{editingTelephonyConnectionId ? 'Bağlantıyı düzenle' : 'Yeni bağlantı'}</h2><p>SIP trunk ve sağlayıcı güvenlik politikasını tanımlayın.</p></div><button aria-label="Telefon bağlantısı formunu kapat" className="grid-icon-button" type="button" onClick={() => setIsTelephonyConnectionFormOpen(false)}><X size={17} /></button></header>
+              <div className="form-drawer-body">
+                <div className="form-grid two"><Field label="Bağlantı kodu" required><input required value={telephonyConnectionDraft.code} onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, code: event.target.value })} placeholder="NETGSM" /></Field><Field label="Bağlantı adı" required><input required value={telephonyConnectionDraft.name} onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, name: event.target.value })} placeholder="Netgsm SIP Trunk" /></Field></div>
+                <div className="form-grid two"><Field label="Sağlayıcı" required><select value={String(telephonyConnectionDraft.providerType)} onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, providerType: event.target.value as TelephonyProviderType })}><option value="Netgsm">Netgsm</option><option value="GenericSip">Generic SIP</option><option value="Twilio">Twilio</option><option value="AzureCommunicationServices">Azure Communication Services</option><option value="Other">Diğer</option></select></Field><Field label="SIP taşıma" required><select value={String(telephonyConnectionDraft.transport)} onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, transport: event.target.value as SipTransport })}><option value="Tls">TLS</option><option value="Tcp">TCP</option><option value="Udp">UDP</option></select></Field></div>
+                <div className="form-grid two"><Field label="SIP domain"><input value={telephonyConnectionDraft.sipDomain} onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, sipDomain: event.target.value })} placeholder="sip.provider.example" /></Field><Field label="Outbound proxy"><input value={telephonyConnectionDraft.outboundProxy} onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, outboundProxy: event.target.value })} placeholder="proxy.provider.example:5061" /></Field></div>
+                <Field label="SIP kullanıcı adı"><input autoComplete="off" value={telephonyConnectionDraft.authUsername} onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, authUsername: event.target.value })} /></Field>
+                <div className="form-grid two"><Field label="Credential secret referansı"><input autoComplete="off" value={telephonyConnectionDraft.credentialSecretReference} onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, credentialSecretReference: event.target.value })} placeholder="env://NETGSM_SIP_SECRET" /></Field><Field label="Webhook secret referansı"><input autoComplete="off" value={telephonyConnectionDraft.webhookSigningSecretReference} onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, webhookSigningSecretReference: event.target.value })} placeholder="env://NETGSM_WEBHOOK_SECRET" /></Field></div>
+                <div className="form-grid two"><Field label="Dış API adresi"><input type="url" value={telephonyConnectionDraft.apiBaseUrl} onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, apiBaseUrl: event.target.value })} placeholder="https://api.provider.example" /></Field><Field label="Zaman aşımı (sn)" required><input min="2" max="120" type="number" value={telephonyConnectionDraft.requestTimeoutSeconds} onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, requestTimeoutSeconds: Number(event.target.value) })} /></Field></div>
+                <div className="check-stack"><label className="check"><input checked={telephonyConnectionDraft.recordingEnabled} type="checkbox" onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, recordingEnabled: event.target.checked })} /> Görüşme kaydı etkin</label><label className="check"><input checked={telephonyConnectionDraft.allowInternationalOutbound} type="checkbox" onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, allowInternationalOutbound: event.target.checked })} /> Bu bağlantıdan uluslararası dış aramaya izin ver</label><label className="check"><input checked={telephonyConnectionDraft.isActive} type="checkbox" onChange={(event) => setTelephonyConnectionDraft({ ...telephonyConnectionDraft, isActive: event.target.checked })} /> Bağlantı aktif</label></div>
+              </div>
+              <footer className="form-drawer-footer"><button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsTelephonyConnectionFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={isFormSaving || !telephonyConnectionDraft.code.trim() || !telephonyConnectionDraft.name.trim()} type="button" onClick={saveTelephonyConnection}>{isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} {editingTelephonyConnectionId ? 'Bağlantıyı güncelle' : 'Bağlantıyı kaydet'}</button></footer>
+            </aside>
+          </div>
+        )}
+
+        {isInboundNumberFormOpen && (
+          <div className="drawer-backdrop" role="presentation" onMouseDown={() => setIsInboundNumberFormOpen(false)}>
+            <aside aria-label={editingInboundNumberId ? 'Gelen numarayı düzenle' : 'Yeni gelen numara'} className="form-drawer" onMouseDown={(event) => event.stopPropagation()}>
+              <header className="form-drawer-header"><div><span>Telefon Altyapısı</span><h2>{editingInboundNumberId ? 'Numarayı düzenle' : 'Yeni gelen numara'}</h2><p>DID numarasını ülke, dil ve çağrı kuyruğuna bağlayın.</p></div><button aria-label="Gelen numara formunu kapat" className="grid-icon-button" type="button" onClick={() => setIsInboundNumberFormOpen(false)}><X size={17} /></button></header>
+              <div className="form-drawer-body">
+                <Field label="Telefon bağlantısı" required><select required value={inboundNumberDraft.providerConnectionId} onChange={(event) => setInboundNumberDraft({ ...inboundNumberDraft, providerConnectionId: event.target.value })}><option value="">Bağlantı seçin</option>{telephonyOptions.connections.map((connection) => <option key={connection.id} value={connection.id}>{connection.name} · {connection.code}</option>)}</select></Field>
+                <div className="form-grid two"><Field label="Gelen numara" required><input required value={inboundNumberDraft.e164Number} onChange={(event) => setInboundNumberDraft({ ...inboundNumberDraft, e164Number: event.target.value })} placeholder="+902121234567" /></Field><Field label="Görünen ad" required><input required value={inboundNumberDraft.displayName} onChange={(event) => setInboundNumberDraft({ ...inboundNumberDraft, displayName: event.target.value })} placeholder="Türkiye destek hattı" /></Field></div>
+                <div className="form-grid two"><Field label="Varsayılan ülke" required><select value={inboundNumberDraft.countryCode} onChange={(event) => setInboundNumberDraft({ ...inboundNumberDraft, countryCode: event.target.value })}><option value="TR">Türkiye</option><option value="GB">Birleşik Krallık</option><option value="DE">Almanya</option><option value="US">ABD / Kanada</option><option value="FR">Fransa</option><option value="NL">Hollanda</option><option value="AE">Birleşik Arap Emirlikleri</option><option value="SA">Suudi Arabistan</option></select></Field><Field label="Başlangıç dili" required><select value={inboundNumberDraft.defaultLocale} onChange={(event) => setInboundNumberDraft({ ...inboundNumberDraft, defaultLocale: event.target.value })}><option value="tr-TR">Türkçe · tr-TR</option><option value="en-GB">English UK · en-GB</option><option value="en-US">English US · en-US</option><option value="de-DE">Deutsch · de-DE</option><option value="fr-FR">Français · fr-FR</option><option value="ar-SA">العربية · ar-SA</option><option value="ru-RU">Русский · ru-RU</option><option value="es-ES">Español · es-ES</option></select></Field></div>
+                <Field label="Varsayılan çağrı kuyruğu"><select value={inboundNumberDraft.defaultQueueId} onChange={(event) => setInboundNumberDraft({ ...inboundNumberDraft, defaultQueueId: event.target.value })}><option value="">Kural motoru karar versin</option>{telephonyOptions.queues.map((queue) => <option key={queue.id} value={queue.id}>{queue.name} · {queue.code}</option>)}</select></Field>
+                <div className="check-stack"><label className="check"><input checked={inboundNumberDraft.acceptInbound} type="checkbox" onChange={(event) => setInboundNumberDraft({ ...inboundNumberDraft, acceptInbound: event.target.checked })} /> Gelen çağrıları kabul et</label><label className="check"><input checked={inboundNumberDraft.acceptInternationalInbound} type="checkbox" onChange={(event) => setInboundNumberDraft({ ...inboundNumberDraft, acceptInternationalInbound: event.target.checked })} /> Yurt dışından gelen çağrıları kabul et</label><label className="check"><input checked={inboundNumberDraft.allowOutboundCli} type="checkbox" onChange={(event) => setInboundNumberDraft({ ...inboundNumberDraft, allowOutboundCli: event.target.checked })} /> Giden aramalarda bu numarayı CLI olarak kullan</label><label className="check"><input checked={inboundNumberDraft.isActive} type="checkbox" onChange={(event) => setInboundNumberDraft({ ...inboundNumberDraft, isActive: event.target.checked })} /> Numara aktif</label></div>
+              </div>
+              <footer className="form-drawer-footer"><button className="secondary-action" disabled={isFormSaving} type="button" onClick={() => setIsInboundNumberFormOpen(false)}>Vazgeç</button><button className="save-button" disabled={isFormSaving || !inboundNumberDraft.providerConnectionId || !inboundNumberDraft.e164Number.trim() || !inboundNumberDraft.displayName.trim()} type="button" onClick={saveInboundNumber}>{isFormSaving ? <RefreshCw className="spin" size={16} /> : <Save size={16} />} {editingInboundNumberId ? 'Numarayı güncelle' : 'Numarayı kaydet'}</button></footer>
             </aside>
           </div>
         )}
