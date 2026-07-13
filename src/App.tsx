@@ -60,6 +60,7 @@ import {
   type CalendarException,
   type CallQueue,
   type CallSession,
+  type CallFollowUp,
   type AgentPresence,
   type AgentPresenceStatus,
   type Company,
@@ -141,7 +142,7 @@ const loginLanguages = [
 
 type LoginLanguageCode = (typeof loginLanguages)[number]['code'];
 type SelectOption = { value: string; label: string; helper?: string };
-type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'telephony-connections' | 'phone-numbers' | 'departments' | 'queues' | 'transfer-targets' | 'agent-status' | 'rules' | 'ai-profile' | 'speech-profile' | 'simulator' | 'call-sessions' | 'logs' | 'users' | 'roles';
+type WorkspaceSection = 'company' | 'hours' | 'exceptions' | 'telephony-connections' | 'phone-numbers' | 'departments' | 'queues' | 'transfer-targets' | 'agent-status' | 'rules' | 'ai-profile' | 'speech-profile' | 'simulator' | 'call-sessions' | 'follow-ups' | 'logs' | 'users' | 'roles';
 type WorkspaceGroup = 'company-management' | 'telephony' | 'operation' | 'ai-operation' | 'monitoring' | 'access-management';
 
 const defaultExpandedWorkspaceGroups: Record<WorkspaceGroup, boolean> = {
@@ -179,6 +180,7 @@ const workspacePaths: Record<WorkspaceSection, string> = {
   'speech-profile': '/ai-operations/speech-profile',
   simulator: '/monitoring/decision-simulator',
   'call-sessions': '/monitoring/call-sessions',
+  'follow-ups': '/monitoring/follow-ups',
   logs: '/monitoring/conversation-logs',
   users: '/access-management/users',
   roles: '/access-management/roles',
@@ -793,6 +795,7 @@ function App() {
       { id: 'speech-profile' as const, group: 'ai-operation' as const, permission: 'speech.view', title: 'Konuşma ve Diller', description: 'STT, TTS, dil, aksan ve ses profilleri', icon: <Globe size={16} /> },
       { id: 'simulator' as const, group: 'monitoring' as const, permission: 'simulator.execute', title: 'Karar Simülasyonu', description: 'Kural sonucunu test et', icon: <Play size={16} /> },
       { id: 'call-sessions' as const, group: 'monitoring' as const, permission: 'calls.view', title: 'Çağrı Oturumları', description: 'Aktif ve tamamlanan çağrı yaşam döngüsü', icon: <Headphones size={16} /> },
+      { id: 'follow-ups' as const, group: 'monitoring' as const, permission: 'calls.view', title: 'Geri Arama ve Mesajlar', description: 'Bekleyen geri arama ve sesli mesaj işleri', icon: <PhoneIncoming size={16} /> },
       { id: 'logs' as const, group: 'monitoring' as const, permission: 'logs.view', title: 'Konuşma Logları', description: 'Çağrı karar kayıtları', icon: <History size={16} /> },
       { id: 'users' as const, group: 'access-management' as const, permission: 'users.view', title: 'Firma Kullanıcıları', description: 'Kullanıcı ve firma rolü atamaları', icon: <UserRound size={16} /> },
       { id: 'roles' as const, group: 'access-management' as const, permission: 'roles.view', title: 'Roller ve Yetkiler', description: 'Rol bazlı modül ve işlem izinleri', icon: <ShieldCheck size={16} /> },
@@ -871,6 +874,14 @@ function App() {
     { key: 'language', label: 'Dil', width: '90px', render: (row) => row.detectedLocale ?? row.initialLocale ?? '-' },
     { key: 'runtime', label: 'Canlı durum', width: '130px', render: (row) => <span className={String(row.runtimeStatus) === 'Faulted' ? 'data-badge' : 'data-badge info'}>{String(row.runtimeStatus)}</span> },
     { key: 'status', label: 'Oturum', sortKey: 'Status', width: '110px', render: (row) => <span className="data-badge info">{String(row.status)}</span> },
+  ], []);
+  const followUpGridColumns = useMemo<PagedGridColumn<CallFollowUp>[]>(() => [
+    { key: 'requested', label: 'Talep zamanı', sortKey: 'RequestedAtUtc', width: '170px', render: (row) => new Date(row.requestedAtUtc).toLocaleString('tr-TR') },
+    { key: 'caller', label: 'Arayan', render: (row) => <span className="primary-cell"><strong>{row.callerNumberMasked ?? 'Numara gizli'}</strong><small>{row.correlationId.slice(0, 12)} · {row.locale ?? '-'}</small></span> },
+    { key: 'type', label: 'İş türü', sortKey: 'Type', width: '120px', render: (row) => String(row.type) === 'Callback' || row.type === 0 ? 'Geri arama' : 'Sesli mesaj' },
+    { key: 'summary', label: 'Konuşma özeti', render: (row) => row.requestSummary ? <span className="line-clamp-cell">{row.requestSummary}</span> : '-' },
+    { key: 'agent', label: 'Atanan', width: '150px', render: (row) => row.assignedAgentName ?? '-' },
+    { key: 'status', label: 'Durum', sortKey: 'Status', width: '120px', render: (row) => <span className={String(row.status) === 'Completed' ? 'data-badge active' : 'data-badge info'}>{String(row.status)}</span> },
   ], []);
   const telephonyConnectionGridColumns = useMemo<PagedGridColumn<TelephonyProviderConnection>[]>(() => [
     { key: 'connection', label: 'Bağlantı', sortKey: 'Name', render: (row) => <span className="primary-cell"><strong>{row.name}</strong><small>{row.code} · {String(row.providerType)}</small></span> },
@@ -1178,6 +1189,23 @@ function App() {
       setStatus('AI asistan profili kaydedilemedi');
     } finally {
       setIsAiProfileSaving(false);
+    }
+  }
+
+  async function completeFollowUp(item: CallFollowUp) {
+    if (!selectedCompanyId || !hasWorkspacePermission('calls.manage')) return;
+    const note = window.prompt('Tamamlama notu (isteğe bağlı)', item.resolutionNote ?? '');
+    if (note === null) return;
+    try {
+      await callCenterApi.updateCallFollowUp(selectedCompanyId, item.id, {
+        status: 'Completed',
+        assignedCompanyUserId: item.assignedCompanyUserId ?? null,
+        resolutionNote: note || null,
+      });
+      setGridRefreshVersion((version) => version + 1);
+      setStatus('Takip işi tamamlandı');
+    } catch {
+      setStatus('Takip işi güncellenemedi');
     }
   }
 
@@ -2865,6 +2893,25 @@ function App() {
               refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
               rowKey={(row) => row.id}
               searchPlaceholder="Çağrı, numara veya sağlayıcı kimliğinde ara..."
+            />
+          </section>}
+
+          {activeSection === 'follow-ups' && <section className="panel company-panel">
+            <div className="management-panel-header">
+              <div><PanelTitle icon={<PhoneIncoming size={18} />} title="Geri Arama ve Mesajlar" /><p className="panel-helper">AI görüşmesinden oluşan geri arama ve sesli mesaj işlerini sonuçlanana kadar izleyin.</p></div>
+            </div>
+            <PagedGrid
+              actionsLabel="İşlem"
+              columns={followUpGridColumns}
+              defaultSortBy="RequestedAtUtc"
+              defaultSortDirection="desc"
+              emptyDescription="AI geri arama veya sesli mesaj kararı verdiğinde maskeli talep kaydı burada oluşur."
+              emptyTitle="Bekleyen takip işi yok"
+              fetchPage={(request) => selectedCompanyId ? callCenterApi.queryCallFollowUps(selectedCompanyId, request) : emptyPage(request)}
+              refreshKey={`${selectedCompanyId}-${gridRefreshVersion}`}
+              renderActions={hasWorkspacePermission('calls.manage') ? (row) => String(row.status) !== 'Completed' && row.status !== 2 ? <button aria-label="Takip işini tamamla" className="grid-icon-button" title="Tamamla" type="button" onClick={() => void completeFollowUp(row)}><Check size={15} /></button> : null : undefined}
+              rowKey={(row) => row.id}
+              searchPlaceholder="Numara, konuşma özeti veya sonuç notunda ara..."
             />
           </section>}
 

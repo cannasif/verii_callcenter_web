@@ -261,6 +261,9 @@ export interface AgentPresence { companyUserId: number; userId: number; displayN
 export type CallSessionStatus = 'Created' | 'Ringing' | 'Queued' | 'Assigned' | 'Connected' | 'WrapUp' | 'Completed' | 'Abandoned' | 'Failed' | number;
 export type CallRuntimeStatus = 'Pending' | 'Starting' | 'Listening' | 'Speaking' | 'Transferring' | 'Transferred' | 'Stopping' | 'Stopped' | 'Faulted' | number;
 export interface CallSession { id: number; companyId: number; correlationId: string; direction: 'Inbound' | 'Outbound' | number; status: CallSessionStatus; runtimeStatus: CallRuntimeStatus; channel: string; providerCallId?: string | null; callerNumberMasked?: string | null; callerCountryCode?: string | null; isInternationalCaller: boolean; calledNumber?: string | null; inboundNumberName?: string | null; initialLocale?: string | null; detectedLocale?: string | null; queueId?: number | null; queueName?: string | null; assignedCompanyUserId?: number | null; assignedAgentName?: string | null; transferAttemptCount: number; runtimeHeartbeatAtUtc?: string | null; createdAtUtc: string; queuedAtUtc?: string | null; answeredAtUtc?: string | null; endedAtUtc?: string | null; endReason?: string | null; }
+export type CallFollowUpType = 'Callback' | 'Voicemail' | number;
+export type CallFollowUpStatus = 'Pending' | 'InProgress' | 'Completed' | 'Cancelled' | number;
+export interface CallFollowUp { id: number; companyId: number; callSessionId: number; correlationId: string; type: CallFollowUpType; status: CallFollowUpStatus; callerNumberMasked?: string | null; locale?: string | null; requestSummary?: string | null; assignedCompanyUserId?: number | null; assignedAgentName?: string | null; requestedAtUtc: string; completedAtUtc?: string | null; resolutionNote?: string | null; }
 export type TransferTargetType = 'SipExtension' | 'ExternalPhoneNumber' | 'ExternalSipUri' | 'NetgsmExtensionOrQueue' | number;
 export interface TransferTarget { id: number; companyId: number; queueId: number; queueName: string; companyUserId?: number | null; companyUserName?: string | null; providerConnectionId?: number | null; providerConnectionName?: string | null; code: string; name: string; targetType: TransferTargetType; destination: string; priority: number; ringTimeoutSeconds: number; isFallback: boolean; isActive: boolean; notes?: string | null; }
 export interface TransferTargetOptions { queues: Array<{ id: number; code: string; name: string }>; providers: Array<{ id: number; name: string; providerType: string | number; allowInternationalOutbound: boolean }>; agents: Array<{ companyUserId: number; queueId: number; displayName: string; email: string }>; }
@@ -345,6 +348,10 @@ export const callCenterApi = {
     api.post<SpeechLanguage>(`/api/companies/${companyId}/speech-profile/languages`, payload).then((x) => x.data),
   deleteSpeechLanguage: (companyId: number, id: number) =>
     api.delete(`/api/companies/${companyId}/speech-profile/languages/${id}`),
+  queryCallFollowUps: (companyId: number, request: PagedRequest) =>
+    api.post<ApiResponse<PagedResponse<CallFollowUp>>>(`/api/companies/${companyId}/operations/call-follow-ups/query`, request).then((x) => unwrapPaged(x.data)),
+  updateCallFollowUp: (companyId: number, id: number, payload: { status: CallFollowUpStatus; assignedCompanyUserId?: number | null; resolutionNote?: string | null }) =>
+    api.put<CallFollowUp>(`/api/companies/${companyId}/operations/call-follow-ups/${id}`, payload).then((x) => x.data),
   simulate: (payload: {
     companyId: number;
     occurredAt: string;
