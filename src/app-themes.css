@@ -24,9 +24,12 @@
 /* ---------- Brand logo ---------- */
 .app-shell .brand-logo {
   display: block;
-  height: 58px;
+  /* PNG'de geniş şeffaf kenarlar var; gerçek boyutu büyütüp negatif margin ile
+     alanı sabit tutuyoruz (transform: scale bulanık render ediyordu) */
+  height: 122px;
   width: auto;
   max-width: 230px;
+  margin-block: -32px;
   object-fit: contain;
   object-position: center center;
   flex-shrink: 0;
@@ -34,11 +37,10 @@
 
 .app-shell.sidebar-collapsed .brand-logo,
 .app-shell.sidebar-collapsed .brand-logo-v3 {
-  width: 52px;
-  height: 52px;
-  max-width: 52px;
-  transform: scale(1.12);
-  transform-origin: center center;
+  width: 66px;
+  height: 66px;
+  max-width: 66px;
+  margin: -7px;
 }
 
 .app-shell .brand {
@@ -1360,8 +1362,9 @@
 .app-shell[data-theme="retro"] .brand-logo {
   mix-blend-mode: normal;
   filter: none;
-  height: 54px;
+  height: 113px;
   max-width: 220px;
+  margin-block: -30px;
 }
 
 .app-shell[data-theme="retro"][data-mode="light"] .brand-logo {
@@ -2305,8 +2308,9 @@
 }
 
 .app-shell[data-theme="classic"] .brand-logo {
-  height: 52px;
+  height: 109px;
   max-width: 210px;
+  margin-block: -28px;
 }
 
 .app-shell[data-theme="classic"] .sidebar-toggle,
@@ -3770,20 +3774,20 @@
 
 .app-shell.sidebar-collapsed[data-theme="retro"] .brand-logo,
 .app-shell.sidebar-collapsed[data-theme="retro"] .brand-logo-v3 {
-  width: 54px;
-  height: 54px;
-  max-width: 54px;
-  transform: scale(1.15);
+  width: 71px;
+  height: 71px;
+  max-width: 71px;
+  margin: -8px;
 }
 
 .app-shell.sidebar-collapsed[data-theme="space"] .brand-logo,
 .app-shell.sidebar-collapsed[data-theme="space"] .brand-logo-v3,
 .app-shell.sidebar-collapsed[data-theme="classic"] .brand-logo,
 .app-shell.sidebar-collapsed[data-theme="classic"] .brand-logo-v3 {
-  width: 52px;
-  height: 52px;
-  max-width: 52px;
-  transform: scale(1.12);
+  width: 66px;
+  height: 66px;
+  max-width: 66px;
+  margin: -7px;
 }
 
 .app-shell[data-mode="light"] .sidebar {

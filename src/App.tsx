@@ -2258,6 +2258,8 @@ function App() {
             alt="V3RII"
             className={isSidebarCollapsed ? 'brand-logo brand-logo-v3' : 'brand-logo'}
             src={isSidebarCollapsed ? v3Logo : callCenterLogo}
+            draggable={false}
+            onDoubleClick={() => selectWorkspaceSection('dashboard')}
           />
         </div>
 
